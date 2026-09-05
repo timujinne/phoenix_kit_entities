@@ -134,8 +134,7 @@ lib/
       entity_form.ex                   # Embeddable public form component
     controllers/
       entity_form_controller.ex        # Public form submission handler
-    migrations/
-      v1.ex                            # Migration module (called by parent app)
+    migrations.ex                       # Module-owned V1 migration chain (pkn_schema marker)
     mirror/
       exporter.ex                      # Entity/data export to JSON
       importer.ex                      # Entity/data import from JSON
@@ -501,7 +500,7 @@ mix phoenix_kit_entities.import
 
 ## Database
 
-Database tables and migrations are managed entirely by core PhoenixKit. The entities tables are created by core's `V17` migration and evolved by `V40` / `V58` / `V67` / `V74` / `V81`. The host app runs `PhoenixKit.Migrations.up()` once and gets everything — no module-owned DDL.
+The entities tables are created by core's `V17` migration and evolved by `V40` / `V58` / `V67` / `V74` / `V81`; the host app still runs `PhoenixKit.Migrations.up()` once and gets that baseline shape. As of this version, `PhoenixKitEntities.Migrations` (V1, the `pkn_schema:` marker on `phoenix_kit_entities`) additionally owns the tables' future shape: it is discovered via `migration_module/0` and run automatically by `mix phoenix_kit.update`, and its `down/1` only unstamps the marker — it never drops the tables.
 
 ```elixir
 # Two tables:
@@ -543,4 +542,4 @@ Names must be snake_case, start with a letter, 2-50 characters. Examples: `produ
 
 Force a clean rebuild: `mix deps.clean phoenix_kit_entities && mix deps.get && mix deps.compile phoenix_kit_entities --force && mix compile --force`
 
-> **Note:** The entities tables are owned by core PhoenixKit. `V17` creates them; `V40` / `V58` / `V67` / `V74` / `V81` evolve them. The test suite builds its schema by running `PhoenixKit.Migrations.up()` against an isolated test repo — the same call the host app makes — so test schema and production schema cannot drift apart.
+> **Note:** Core PhoenixKit creates the entities tables (`V17`, evolved by `V40` / `V58` / `V67` / `V74` / `V81`), and `PhoenixKitEntities.Migrations` (V1) owns their shape from here on — see [Database](#database) above. The test suite builds its schema by running `PhoenixKit.Migrations.up()` against an isolated test repo — the same call the host app makes — so test schema and production schema cannot drift apart.

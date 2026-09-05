@@ -5,6 +5,28 @@ defmodule PhoenixKitEntities.MigrationsTest do
 
   @tables ~w(phoenix_kit_entities phoenix_kit_entity_data)
 
+  @indexes ~w(
+    phoenix_kit_entities_created_by_uuid_idx
+    phoenix_kit_entities_name_uidx
+    phoenix_kit_entities_status_idx
+    phoenix_kit_entities_uuid_idx
+    phoenix_kit_entity_data_created_by_uuid_idx
+    phoenix_kit_entity_data_entity_position_idx
+    phoenix_kit_entity_data_entity_uuid_idx
+    phoenix_kit_entity_data_parent_index
+    phoenix_kit_entity_data_slug_idx
+    phoenix_kit_entity_data_status_idx
+    phoenix_kit_entity_data_title_idx
+    phoenix_kit_entity_data_uuid_idx
+  )
+
+  @constraints ~w(
+    phoenix_kit_entities_pkey
+    phoenix_kit_entity_data_pkey
+    fk_entity_data_entity_uuid
+    phoenix_kit_entity_data_parent_uuid_fkey
+  )
+
   test "chain is V1 and marks phoenix_kit_entities" do
     assert Migrations.current_version() == 1
     assert Migrations.version_table() == "phoenix_kit_entities"
@@ -43,6 +65,20 @@ defmodule PhoenixKitEntities.MigrationsTest do
 
     for s <- Migrations.up_statements("public"), s =~ ~r/ADD CONSTRAINT/ do
       assert s =~ ~r/DO \$\$/ and s =~ ~r/IF NOT EXISTS/
+    end
+  end
+
+  test "every pinned index and constraint name is present in up_statements" do
+    stmts = Migrations.up_statements("public")
+    joined = Enum.join(stmts, "\n")
+
+    for name <- @indexes do
+      assert joined =~ ~r/CREATE (UNIQUE )?INDEX IF NOT EXISTS #{name}\b/,
+             "missing index: #{name}"
+    end
+
+    for name <- @constraints do
+      assert joined =~ ~r/ADD CONSTRAINT #{name}\b/, "missing constraint: #{name}"
     end
   end
 

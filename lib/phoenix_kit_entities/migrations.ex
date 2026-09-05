@@ -3,10 +3,13 @@ defmodule PhoenixKitEntities.Migrations do
   Module-owned migration chain for the entities tables (`phoenix_kit_entities`,
   `phoenix_kit_entity_data`). V1 is purely adoptive: core's V135 (+V169) still
   creates the same tables, so every statement is idempotent and name-identical
-  to core's objects (authority: the live V182 schema). The `pkn_schema:<N>`
-  marker on `phoenix_kit_entities` is the version; `down/1` only unstamps.
-  Protocol: phoenix_kit_hello_world README, "Adopting a table core already
-  creates (extraction)".
+  to core's objects (authority: the live V182 schema). The floor is core's
+  **V169** — first shipped in `phoenix_kit 2.4.0` — which is what makes
+  `phoenix_kit_entity_data.created_by_uuid` nullable; an older core still has
+  it `NOT NULL`, which this chain's adopted shape (below) does not match. The
+  `pkn_schema:<N>` marker on `phoenix_kit_entities` is the version; `down/1`
+  only unstamps. Protocol: phoenix_kit_hello_world README, "Adopting a table
+  core already creates (extraction)".
 
   Core's v169 both drops and re-adds `NOT NULL` on
   `phoenix_kit_entity_data.created_by_uuid` (v169.ex:77 vs :200); the live
