@@ -97,4 +97,56 @@ defmodule PhoenixKitEntities.MigrationsTest do
   test "the module registers the chain" do
     assert PhoenixKitEntities.migration_module() == Migrations
   end
+
+  # The drift guard. Core's ExpectedSchema manifest is the authority for what
+  # these two tables contain; V1 adopts that shape. Two lists that must stay in
+  # sync, so derive one from the other instead of hand-copying: a column, index
+  # or constraint core adds to an entities table and this chain does not adopt
+  # is a silently missing object on any install whose core baseline stops
+  # creating it.
+  #
+  # `ExpectedSchema` is core-internal (`@moduledoc false`), so the test skips
+  # itself rather than failing if a future core drops `objects/1`.
+  describe "adoption covers core's manifest" do
+    @manifest_mod PhoenixKit.Migrations.ExpectedSchema
+
+    test "every required core object for the entities tables is in up_statements" do
+      if Code.ensure_loaded?(@manifest_mod) and function_exported?(@manifest_mod, :objects, 1) do
+        stmts = Migrations.up_statements("public")
+
+        for %{id: id, presence: :required} <- @manifest_mod.objects("public"),
+            [class, rest] = String.split(id, ":", parts: 2),
+            owned_object?(rest) do
+          assert covered?(class, rest, stmts), "V1 does not adopt core's #{id}"
+        end
+      end
+    end
+  end
+
+  defp owned_object?(rest) do
+    Enum.any?(@tables, fn t ->
+      rest == t or String.starts_with?(rest, t <> ".") or String.starts_with?(rest, t <> "_")
+    end)
+  end
+
+  defp covered?("table", table, stmts),
+    do: Enum.any?(stmts, &String.contains?(&1, "CREATE TABLE IF NOT EXISTS public.#{table} ("))
+
+  defp covered?("column", id, stmts) do
+    [table, column] = String.split(id, ".", parts: 2)
+
+    stmts
+    |> Enum.filter(&String.contains?(&1, "CREATE TABLE IF NOT EXISTS public.#{table} ("))
+    |> Enum.any?(&Regex.match?(~r/^\s+"?#{Regex.escape(column)}"?\s/m, &1))
+  end
+
+  defp covered?("index", name, stmts),
+    do: Enum.any?(stmts, &String.contains?(&1, "INDEX IF NOT EXISTS #{name} ON"))
+
+  defp covered?("constraint", id, stmts) do
+    [_table, name] = String.split(id, ".", parts: 2)
+    Enum.any?(stmts, &String.contains?(&1, "ADD CONSTRAINT #{name} "))
+  end
+
+  defp covered?(_class, _id, _stmts), do: true
 end

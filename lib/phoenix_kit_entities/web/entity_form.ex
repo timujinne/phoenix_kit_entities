@@ -1744,8 +1744,15 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       <div class="container flex flex-col mx-auto px-4 py-6">
         <%!-- Header Section --%>
         <.admin_page_header back={PhoenixKit.Utils.Routes.path("/admin/entities")}>
-          <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
-            {if @entity.uuid, do: gettext("Edit Entity"), else: gettext("Create New Entity")}
+          <%!-- Edit mode's title duplicates the page_title assign already
+          shown in the breadcrumb bar ("Edit Entity") — only the create
+          mode's heading ("Create New Entity" vs. its distinct "New Entity"
+          page_title) still needs to render here. --%>
+          <h1
+            :if={is_nil(@entity.uuid)}
+            class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content"
+          >
+            {gettext("Create New Entity")}
           </h1>
           <p class="text-sm text-base-content/60 mt-0.5">
             {gettext("Define your custom content type with dynamic fields")}

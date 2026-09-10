@@ -14,6 +14,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   require Logger
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.Events
@@ -30,7 +31,10 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
     socket =
       socket
-      |> assign(:page_title, gettext("Entities Settings"))
+      |> assign(:page_title, gettext("Entities"))
+      |> assign(:page_subtitle, gettext("Configure the entities system behavior and preferences"))
+      |> assign(:page_section, gettext("Settings"))
+      |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, nil)
       |> assign(:settings, %{})
       |> assign(:changeset, nil)
@@ -785,13 +789,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   def render(assigns) do
     ~H"""
       <div class="container flex flex-col mx-auto px-4 py-6">
-        <%!-- Header Section --%>
-        <.admin_page_header
-          back={PhoenixKit.Utils.Routes.path("/admin/modules")}
-          title={gettext("Entities Settings")}
-          subtitle={gettext("Configure the entities system behavior and preferences")}
-        />
-
         <%!-- System Status Card --%>
         <div class="card bg-base-100 shadow-xl mb-6">
           <div class="card-body">

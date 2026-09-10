@@ -14,7 +14,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/settings/entities")
 
-      assert html =~ "Entities Settings"
       assert html =~ "System Status"
     end
   end

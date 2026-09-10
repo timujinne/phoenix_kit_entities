@@ -11,28 +11,28 @@ msgstr ""
 "Language: et\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2096
+#: lib/phoenix_kit_entities/web/entity_form.ex:2132
 #, elixir-autogen, elixir-format
 msgid "%{count} Field Definition"
 msgid_plural "%{count} Field Definitions"
 msgstr[0] "%{count} väljamääratlus"
 msgstr[1] "%{count} väljamääratlust"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:742
+#: lib/phoenix_kit_entities/web/entities_settings.ex:746
 #, elixir-autogen, elixir-format
 msgid "%{count} day"
 msgid_plural "%{count} days"
 msgstr[0] "%{count} päev"
 msgstr[1] "%{count} päeva"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3337
+#: lib/phoenix_kit_entities/web/entity_form.ex:3373
 #, elixir-autogen, elixir-format
 msgid "%{count} icon available"
 msgid_plural "%{count} icons available"
 msgstr[0] "%{count} ikoon saadaval"
 msgstr[1] "%{count} ikooni saadaval"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:736
+#: lib/phoenix_kit_entities/web/entities_settings.ex:740
 #, elixir-autogen, elixir-format
 msgid "%{count} month"
 msgid_plural "%{count} months"
@@ -81,35 +81,35 @@ msgstr "%{count} kirjet uuendati"
 msgid "%{count} selected"
 msgstr "%{count} valitud"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:726
+#: lib/phoenix_kit_entities/web/entities_settings.ex:730
 #, elixir-autogen, elixir-format
 msgid "%{count} year"
 msgid_plural "%{count} years"
 msgstr[0] "%{count} aasta"
 msgstr[1] "%{count} aastat"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1126
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1123
 #, elixir-autogen, elixir-format
 msgid "%{defs} definitions, %{data} data records"
 msgstr "%{defs} definitsiooni, %{data} andmekirjet"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:738
+#: lib/phoenix_kit_entities/web/entities_settings.ex:742
 #, elixir-autogen, elixir-format
 msgid "%{months} month(s), %{days} day(s)"
 msgstr "%{months} kuud, %{days} päeva"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1164
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1175
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1161
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1172
 #, elixir-autogen, elixir-format
 msgid "%{new} new, %{identical} identical, %{conflicts} changed"
 msgstr "%{new} uut, %{identical} identset, %{conflicts} muudetud"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:728
+#: lib/phoenix_kit_entities/web/entities_settings.ex:732
 #, elixir-autogen, elixir-format
 msgid "%{years} year(s), %{days} day(s)"
 msgstr "%{years} aastat, %{days} päeva"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3138
+#: lib/phoenix_kit_entities/web/entity_form.ex:3174
 #, elixir-autogen, elixir-format
 msgid "Accepted File Types"
 msgstr "Lubatud failitüübid"
@@ -119,15 +119,15 @@ msgstr "Lubatud failitüübid"
 msgid "Accepted types:"
 msgstr "Lubatud tüübid:"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1296
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1293
 #, elixir-autogen, elixir-format
 msgid "Action"
 msgstr "Tegevus"
 
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1409
 #: lib/phoenix_kit_entities/web/entities.ex:278
-#: lib/phoenix_kit_entities/web/entities_settings.ex:988
-#: lib/phoenix_kit_entities/web/entity_form.ex:1488
+#: lib/phoenix_kit_entities/web/entities_settings.ex:985
+#: lib/phoenix_kit_entities/web/entity_form.ex:1517
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr "Tegevused"
@@ -140,28 +140,28 @@ msgstr "Tegevused"
 msgid "Add"
 msgstr "Lisa"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2109
-#: lib/phoenix_kit_entities/web/entity_form.ex:3229
+#: lib/phoenix_kit_entities/web/entity_form.ex:2145
+#: lib/phoenix_kit_entities/web/entity_form.ex:3265
 #, elixir-autogen, elixir-format
 msgid "Add Field"
 msgstr "Lisa väli"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2974
+#: lib/phoenix_kit_entities/web/entity_form.ex:3010
 #, elixir-autogen, elixir-format
 msgid "Add New Field"
 msgstr "Lisa uus väli"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3167
+#: lib/phoenix_kit_entities/web/entity_form.ex:3203
 #, elixir-autogen, elixir-format
 msgid "Add Option"
 msgstr "Lisa valik"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2129
+#: lib/phoenix_kit_entities/web/entity_form.ex:2165
 #, elixir-autogen, elixir-format
 msgid "Add Your First Field"
 msgstr "Lisa oma esimene väli"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2506
+#: lib/phoenix_kit_entities/web/entity_form.ex:2542
 #, elixir-autogen, elixir-format
 msgid "Add a hidden field that bots typically fill out"
 msgstr "Lisa peidetud väli, mille tavaliselt täidavad botid"
@@ -171,24 +171,24 @@ msgstr "Lisa peidetud väli, mille tavaliselt täidavad botid"
 msgid "Add data for the %{entity} entity"
 msgstr "Lisage andmed üksuse %{entity} jaoks"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2121
+#: lib/phoenix_kit_entities/web/entity_form.ex:2157
 #, elixir-autogen, elixir-format
 msgid "Add fields to define what data this entity can store"
 msgstr "Lisa väljad, et määrata, milliseid andmeid see üksus saab salvestada"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2395
+#: lib/phoenix_kit_entities/web/entity_form.ex:2431
 #, elixir-autogen, elixir-format
 msgid "Add fields to this entity first before configuring the public form."
 msgstr "Enne avaliku vormi seadistamist lisa sellele üksusele väljad."
 
-#: lib/phoenix_kit_entities/field_types.ex:371
-#: lib/phoenix_kit_entities/web/entity_form.ex:1471
+#: lib/phoenix_kit_entities/field_types.ex:377
+#: lib/phoenix_kit_entities/web/entity_form.ex:1500
 #, elixir-autogen, elixir-format
 msgid "Advanced"
 msgstr "Täpsem"
 
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1102
-#: lib/phoenix_kit_entities/web/entity_form.ex:1485
+#: lib/phoenix_kit_entities/web/entity_form.ex:1514
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "Kõik"
@@ -198,7 +198,7 @@ msgstr "Kõik"
 msgid "All Entities"
 msgstr "Kõik üksused"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2275
+#: lib/phoenix_kit_entities/web/entity_form.ex:2311
 #, elixir-autogen, elixir-format
 msgid "Allow this entity to be embedded as a form on public pages"
 msgstr "Luba seda üksust kuvada avalikel lehtedel vormina"
@@ -226,27 +226,27 @@ msgstr "Arhiveeri"
 msgid "Archived"
 msgstr "Arhiveeritud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2036
+#: lib/phoenix_kit_entities/web/entity_form.ex:2072
 #, elixir-autogen, elixir-format
 msgid "Archived (hidden)"
 msgstr "Arhiveeritud (peidetud)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:824
+#: lib/phoenix_kit_entities/web/entities_settings.ex:821
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to disable the entities system? This will make all entities and data inaccessible."
 msgstr "Kas olete kindel, et soovite keelata üksuste süsteemi? See muudab kõik üksused ja andmed kättesaamatuks."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2070
+#: lib/phoenix_kit_entities/web/entity_form.ex:2106
 #, elixir-autogen, elixir-format
 msgid "Automatic (by creation date)"
 msgstr "Automaatne (loomiskuupäeva järgi)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2897
+#: lib/phoenix_kit_entities/web/entity_form.ex:2933
 #, elixir-autogen, elixir-format
 msgid "Automatically export data records when they are created or updated"
 msgstr "Ekspordi andmekirjed automaatselt nende loomisel või uuendamisel"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2873
+#: lib/phoenix_kit_entities/web/entity_form.ex:2909
 #, elixir-autogen, elixir-format
 msgid "Automatically export entity schema when changes are saved"
 msgstr "Ekspordi üksuse skeem automaatselt muudatuste salvestamisel"
@@ -256,13 +256,13 @@ msgstr "Ekspordi üksuse skeem automaatselt muudatuste salvestamisel"
 msgid "Available entities:"
 msgstr "Saadaval olevad üksused:"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2836
+#: lib/phoenix_kit_entities/web/entity_form.ex:2872
 #, elixir-autogen, elixir-format
 msgid "Backup Settings"
 msgstr "Varundusseaded"
 
-#: lib/phoenix_kit_entities/field_types.ex:366
-#: lib/phoenix_kit_entities/web/entity_form.ex:1466
+#: lib/phoenix_kit_entities/field_types.ex:372
+#: lib/phoenix_kit_entities/web/entity_form.ex:1495
 #, elixir-autogen, elixir-format
 msgid "Basic"
 msgstr "Põhi"
@@ -273,68 +273,68 @@ msgstr "Põhi"
 msgid "Basic Information"
 msgstr "Põhiteave"
 
-#: lib/phoenix_kit_entities/field_types.ex:368
-#: lib/phoenix_kit_entities/field_types.ex:431
-#: lib/phoenix_kit_entities/web/entity_form.ex:1468
+#: lib/phoenix_kit_entities/field_types.ex:374
+#: lib/phoenix_kit_entities/field_types.ex:437
+#: lib/phoenix_kit_entities/web/entity_form.ex:1497
 #, elixir-autogen, elixir-format
 msgid "Boolean"
 msgstr "Tõeväärtus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1867
+#: lib/phoenix_kit_entities/web/entity_form.ex:1903
 #, elixir-autogen, elixir-format
 msgid "Brand"
 msgstr "Bränd"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1887
+#: lib/phoenix_kit_entities/web/entity_form.ex:1923
 #, elixir-autogen, elixir-format
 msgid "Brands"
 msgstr "Brändid"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1990
+#: lib/phoenix_kit_entities/web/entity_form.ex:2026
 #, elixir-autogen, elixir-format
 msgid "Browse icons"
 msgstr "Sirvi ikoone"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1492
+#: lib/phoenix_kit_entities/web/entity_form.ex:1521
 #, elixir-autogen, elixir-format
 msgid "Business"
 msgstr "Äri"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1219
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1314
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1216
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1311
 #, elixir-autogen, elixir-format
 msgid "CHANGED"
 msgstr "MUUDETUD"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:1955
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1412
-#: lib/phoenix_kit_entities/web/entity_form.ex:2199
-#: lib/phoenix_kit_entities/web/entity_form.ex:2935
-#: lib/phoenix_kit_entities/web/entity_form.ex:3223
-#: lib/phoenix_kit_entities/web/entity_form.ex:3345
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1409
+#: lib/phoenix_kit_entities/web/entity_form.ex:2235
+#: lib/phoenix_kit_entities/web/entity_form.ex:2971
+#: lib/phoenix_kit_entities/web/entity_form.ex:3259
+#: lib/phoenix_kit_entities/web/entity_form.ex:3381
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Tühista"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:514
+#: lib/phoenix_kit_entities/web/entity_form.ex:543
 #, elixir-autogen, elixir-format
 msgid "Cannot delete field - you are spectating"
 msgstr "Välja ei saa kustutada — oled vaatlejarežiimis"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:428
-#: lib/phoenix_kit_entities/web/entity_form.ex:447
-#: lib/phoenix_kit_entities/web/entity_form.ex:690
-#: lib/phoenix_kit_entities/web/entity_form.ex:760
-#: lib/phoenix_kit_entities/web/entity_form.ex:787
-#: lib/phoenix_kit_entities/web/entity_form.ex:811
-#: lib/phoenix_kit_entities/web/entity_form.ex:830
-#: lib/phoenix_kit_entities/web/entity_form.ex:863
-#: lib/phoenix_kit_entities/web/entity_form.ex:886
+#: lib/phoenix_kit_entities/web/entity_form.ex:457
+#: lib/phoenix_kit_entities/web/entity_form.ex:476
+#: lib/phoenix_kit_entities/web/entity_form.ex:719
+#: lib/phoenix_kit_entities/web/entity_form.ex:789
+#: lib/phoenix_kit_entities/web/entity_form.ex:816
+#: lib/phoenix_kit_entities/web/entity_form.ex:840
+#: lib/phoenix_kit_entities/web/entity_form.ex:859
+#: lib/phoenix_kit_entities/web/entity_form.ex:892
+#: lib/phoenix_kit_entities/web/entity_form.ex:915
 #, elixir-autogen, elixir-format
 msgid "Cannot edit - you are spectating"
 msgstr "Ei saa muuta — oled vaatlejarežiimis"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:915
+#: lib/phoenix_kit_entities/web/entity_form.ex:944
 #, elixir-autogen, elixir-format
 msgid "Cannot export - you are spectating"
 msgstr "Ei saa eksportida — oled vaatlejarežiimis"
@@ -355,18 +355,18 @@ msgid "Cannot remove the primary language."
 msgstr "Peakeelt ei saa eemaldada."
 
 #: lib/phoenix_kit_entities/web/data_form.ex:394
-#: lib/phoenix_kit_entities/web/entity_form.ex:294
+#: lib/phoenix_kit_entities/web/entity_form.ex:323
 #, elixir-autogen, elixir-format
 msgid "Cannot reset - you are spectating"
 msgstr "Lähtestamine pole võimalik — oled vaatlejarežiimis"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:347
-#: lib/phoenix_kit_entities/web/entity_form.ex:260
+#: lib/phoenix_kit_entities/web/entity_form.ex:289
 #, elixir-autogen, elixir-format
 msgid "Cannot save - you are spectating"
 msgstr "Salvestamine pole võimalik — oled vaatlejarežiimis"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:489
+#: lib/phoenix_kit_entities/web/entity_form.ex:518
 #, elixir-autogen, elixir-format
 msgid "Cannot save field - you are spectating"
 msgstr "Välja ei saa salvestada — oled vaatlejarežiimis"
@@ -383,28 +383,28 @@ msgid "Change Status"
 msgstr "Muuda olekut"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:389
-#: lib/phoenix_kit_entities/web/entity_form.ex:290
+#: lib/phoenix_kit_entities/web/entity_form.ex:319
 #, elixir-autogen, elixir-format
 msgid "Changes reset to last saved state"
 msgstr "Muudatused lähtestati viimasele salvestatud olekule"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2583
+#: lib/phoenix_kit_entities/web/entity_form.ex:2619
 #, elixir-autogen, elixir-format
 msgid "Check if submission happens too quickly (less than 3 seconds)"
 msgstr "Kontrolli, kas vorm esitati liiga kiiresti (vähem kui 3 sekundiga)"
 
-#: lib/phoenix_kit_entities/field_types.ex:394
+#: lib/phoenix_kit_entities/field_types.ex:400
 #, elixir-autogen, elixir-format
 msgid "Checkbox group (multiple choices)"
 msgstr "Märkeruutude rühm (mitu valikut)"
 
-#: lib/phoenix_kit_entities/field_types.ex:435
+#: lib/phoenix_kit_entities/field_types.ex:441
 #, elixir-autogen, elixir-format
 msgid "Checkboxes"
 msgstr "Märkeruudud"
 
-#: lib/phoenix_kit_entities/field_types.ex:370
-#: lib/phoenix_kit_entities/web/entity_form.ex:1470
+#: lib/phoenix_kit_entities/field_types.ex:376
+#: lib/phoenix_kit_entities/web/entity_form.ex:1499
 #, elixir-autogen, elixir-format
 msgid "Choice"
 msgstr "Valik"
@@ -426,42 +426,42 @@ msgstr "Tühjenda kõik filtrid"
 msgid "Clear Filters"
 msgstr "Tühjenda filtrid"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2000
+#: lib/phoenix_kit_entities/web/entity_form.ex:2036
 #, elixir-autogen, elixir-format
 msgid "Clear icon"
 msgstr "Eemalda ikoon"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2441
+#: lib/phoenix_kit_entities/web/entity_form.ex:2477
 #, elixir-autogen, elixir-format
 msgid "Collect Submission Metadata"
 msgstr "Kogu esituse metaandmeid"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3148
+#: lib/phoenix_kit_entities/web/entity_form.ex:3184
 #, elixir-autogen, elixir-format
 msgid "Comma-separated list of extensions (e.g., .pdf, .jpg, .png, .step, .dwg)"
 msgstr "Komadega eraldatud laienduste loend (nt .pdf, .jpg, .png, .step, .dwg)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1490
+#: lib/phoenix_kit_entities/web/entity_form.ex:1519
 #, elixir-autogen, elixir-format
 msgid "Communication"
 msgstr "Suhtlus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2839
+#: lib/phoenix_kit_entities/web/entity_form.ex:2875
 #, elixir-autogen, elixir-format
 msgid "Configure automatic backup to file for this entity"
 msgstr "Seadista selle üksuse automaatne varundamine faili"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:792
+#: lib/phoenix_kit_entities/web/entities_settings.ex:35
 #, elixir-autogen, elixir-format
 msgid "Configure the entities system behavior and preferences"
 msgstr "Seadistage üksuste süsteemi käitumist ja eelistusi"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2191
+#: lib/phoenix_kit_entities/web/entity_form.ex:2227
 #, elixir-autogen, elixir-format
 msgid "Confirm?"
 msgstr "Kinnitada?"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1487
+#: lib/phoenix_kit_entities/web/entity_form.ex:1516
 #, elixir-autogen, elixir-format
 msgid "Content"
 msgstr "Sisu"
@@ -472,8 +472,8 @@ msgstr "Sisu"
 msgid "Create %{entity}"
 msgstr "Loo %{entity}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1769
-#: lib/phoenix_kit_entities/web/entity_form.ex:2951
+#: lib/phoenix_kit_entities/web/entity_form.ex:1805
+#: lib/phoenix_kit_entities/web/entity_form.ex:2987
 #, elixir-autogen, elixir-format
 msgid "Create Entity"
 msgstr "Loo üksus"
@@ -483,7 +483,7 @@ msgstr "Loo üksus"
 msgid "Create New %{entity}"
 msgstr "Loo uus %{entity}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1719
+#: lib/phoenix_kit_entities/web/entity_form.ex:1755
 #, elixir-autogen, elixir-format
 msgid "Create New Entity"
 msgstr "Loo uus üksus"
@@ -494,8 +494,8 @@ msgstr "Loo uus üksus"
 msgid "Create Your First Entity"
 msgstr "Loo oma esimene üksus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1781
-#: lib/phoenix_kit_entities/web/entity_form.ex:2963
+#: lib/phoenix_kit_entities/web/entity_form.ex:1817
+#: lib/phoenix_kit_entities/web/entity_form.ex:2999
 #, elixir-autogen, elixir-format
 msgid "Create and Return"
 msgstr "Loo ja naase"
@@ -538,9 +538,9 @@ msgstr "Vaheta olekut"
 msgid "Data Navigator"
 msgstr "Andmenavigaator"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:852
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1172
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1267
+#: lib/phoenix_kit_entities/web/entities_settings.ex:849
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1169
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1264
 #, elixir-autogen, elixir-format
 msgid "Data Records"
 msgstr "Andmekirjed"
@@ -565,55 +565,55 @@ msgstr "Andmekirje edukalt taastatud"
 msgid "Data record saved successfully"
 msgstr "Andmekirje edukalt salvestatud"
 
-#: lib/phoenix_kit_entities/field_types.ex:432
+#: lib/phoenix_kit_entities/field_types.ex:438
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr "Kuupäev"
 
-#: lib/phoenix_kit_entities/field_types.ex:369
-#: lib/phoenix_kit_entities/web/entity_form.ex:1469
+#: lib/phoenix_kit_entities/field_types.ex:375
+#: lib/phoenix_kit_entities/web/entity_form.ex:1498
 #, elixir-autogen, elixir-format
 msgid "Date & Time"
 msgstr "Kuupäev ja kellaaeg"
 
-#: lib/phoenix_kit_entities/field_types.ex:391
+#: lib/phoenix_kit_entities/field_types.ex:397
 #, elixir-autogen, elixir-format
 msgid "Date picker"
 msgstr "Kuupäevavalija"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2466
+#: lib/phoenix_kit_entities/web/entity_form.ex:2502
 #, elixir-autogen, elixir-format
 msgid "Debug Mode"
 msgstr "Silumisrežiim"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2481
+#: lib/phoenix_kit_entities/web/entity_form.ex:2517
 #, elixir-autogen, elixir-format
 msgid "Debug mode is enabled. Detailed security errors will be shown to users. Disable this in production."
 msgstr "Silumisrežiim on lubatud. Kasutajatele kuvatakse üksikasjalikud turvavead. Lülita see tootmiskeskkonnas välja."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3076
+#: lib/phoenix_kit_entities/web/entity_form.ex:3112
 #, elixir-autogen, elixir-format
 msgid "Default Value (Optional)"
 msgstr "Vaikeväärtus (valikuline)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1722
+#: lib/phoenix_kit_entities/web/entity_form.ex:1758
 #, elixir-autogen, elixir-format
 msgid "Define your custom content type with dynamic fields"
 msgstr "Määra oma kohandatud sisutüüp dünaamiliste väljadega"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1016
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1207
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1013
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1204
 #, elixir-autogen, elixir-format
 msgid "Definition"
 msgstr "Definitsioon"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:886
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1161
+#: lib/phoenix_kit_entities/web/entities_settings.ex:883
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1158
 #, elixir-autogen, elixir-format
 msgid "Definitions"
 msgstr "Definitsioonid"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2219
+#: lib/phoenix_kit_entities/web/entity_form.ex:2255
 #, elixir-autogen, elixir-format
 msgid "Delete field"
 msgstr "Kustuta väli"
@@ -625,75 +625,75 @@ msgstr "Kustuta väli"
 msgid "Delete forever"
 msgstr "Kustuta jäädavalt"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1955
+#: lib/phoenix_kit_entities/web/entity_form.ex:1991
 #, elixir-autogen, elixir-format
 msgid "Describe what this entity represents..."
 msgstr "Kirjelda, mida see üksus kujutab..."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2306
+#: lib/phoenix_kit_entities/web/entity_form.ex:2342
 #, elixir-autogen, elixir-format
 msgid "Describe what this form is for..."
 msgstr "Kirjelda, milleks see vorm on mõeldud..."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1954
+#: lib/phoenix_kit_entities/web/entity_form.ex:1990
 #, elixir-autogen, elixir-format
 msgid "Description (Optional)"
 msgstr "Kirjeldus (valikuline)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1028
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1061
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1025
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1058
 #, elixir-autogen, elixir-format
 msgid "Disable"
 msgstr "Keela"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:910
-#: lib/phoenix_kit_entities/web/entities_settings.ex:943
+#: lib/phoenix_kit_entities/web/entities_settings.ex:907
+#: lib/phoenix_kit_entities/web/entities_settings.ex:940
 #, elixir-autogen, elixir-format
 msgid "Disable All"
 msgstr "Keela kõik"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1024
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Disable Definition sync"
 msgstr "Keela definitsioonide sünkroonimine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1057
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1054
 #, elixir-autogen, elixir-format
 msgid "Disable Records sync"
 msgstr "Keela kirjete sünkroonimine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:829
+#: lib/phoenix_kit_entities/web/entities_settings.ex:826
 #, elixir-autogen, elixir-format
 msgid "Disable System"
 msgstr "Keela süsteem"
 
 #: lib/phoenix_kit_entities/form_builder.ex:715
-#: lib/phoenix_kit_entities/web/entities_settings.ex:716
+#: lib/phoenix_kit_entities/web/entities_settings.ex:720
 #, elixir-autogen, elixir-format
 msgid "Disabled"
 msgstr "Keelatud"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:303
+#: lib/phoenix_kit_entities/web/entities_settings.ex:307
 #, elixir-autogen, elixir-format
 msgid "Disabled data sync for %{count} entities"
 msgstr "Andmete sünkroonimine keelati %{count} üksuse jaoks"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:275
+#: lib/phoenix_kit_entities/web/entities_settings.ex:279
 #, elixir-autogen, elixir-format
 msgid "Disabled definition sync for %{count} entities"
 msgstr "Definitsioonide sünkroonimine keelati %{count} üksuse jaoks"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:822
+#: lib/phoenix_kit_entities/web/entities_settings.ex:819
 #, elixir-autogen, elixir-format
 msgid "Disabling…"
 msgstr "Keelamine…"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3028
+#: lib/phoenix_kit_entities/web/entity_form.ex:3064
 #, elixir-autogen, elixir-format
 msgid "Display name for users"
 msgstr "Kasutajatele kuvatav nimi"
 
-#: lib/phoenix_kit_entities/field_types.ex:406
+#: lib/phoenix_kit_entities/field_types.ex:412
 #, elixir-autogen, elixir-format
 msgid "Display-only section heading (no data)"
 msgstr "Ainult kuvamiseks mõeldud jaotise pealkiri (andmeid ei sisalda)"
@@ -706,13 +706,13 @@ msgstr "Ainult kuvamiseks mõeldud jaotise pealkiri (andmeid ei sisalda)"
 msgid "Draft"
 msgstr "Mustand"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2033
+#: lib/phoenix_kit_entities/web/entity_form.ex:2069
 #, elixir-autogen, elixir-format
 msgid "Draft (not visible)"
 msgstr "Mustand (pole nähtav)"
 
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1115
-#: lib/phoenix_kit_entities/web/entities_settings.ex:860
+#: lib/phoenix_kit_entities/web/entities_settings.ex:857
 #, elixir-autogen, elixir-format
 msgid "Drafts"
 msgstr "Mustandid"
@@ -725,13 +725,13 @@ msgstr "Mustandid"
 msgid "Drag to reorder"
 msgstr "Lohista ümberjärjestamiseks"
 
-#: lib/phoenix_kit_entities/field_types.ex:392
+#: lib/phoenix_kit_entities/field_types.ex:398
 #, elixir-autogen, elixir-format
 msgid "Dropdown selection (single choice)"
 msgstr "Valik rippmenüüst (üks valik)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1223
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1318
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1220
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1315
 #, elixir-autogen, elixir-format
 msgid "ERROR"
 msgstr "VIGA"
@@ -757,95 +757,94 @@ msgstr "Muuda andmeid"
 
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1033
 #: lib/phoenix_kit_entities/web/entity_form.ex:59
-#: lib/phoenix_kit_entities/web/entity_form.ex:1719
 #, elixir-autogen, elixir-format
 msgid "Edit Entity"
 msgstr "Muuda üksust"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2974
+#: lib/phoenix_kit_entities/web/entity_form.ex:3010
 #, elixir-autogen, elixir-format
 msgid "Edit Field"
 msgstr "Muuda välja"
 
-#: lib/phoenix_kit_entities/field_types.ex:427
+#: lib/phoenix_kit_entities/field_types.ex:433
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr "E-post"
 
-#: lib/phoenix_kit_entities/field_types.ex:386
+#: lib/phoenix_kit_entities/field_types.ex:392
 #, elixir-autogen, elixir-format
 msgid "Email address with validation"
 msgstr "E-posti aadress koos valideerimisega"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2407
+#: lib/phoenix_kit_entities/web/entity_form.ex:2443
 #, elixir-autogen, elixir-format
 msgid "Embed this form:"
 msgstr "Manusta see vorm:"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1040
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1074
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1037
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1071
 #, elixir-autogen, elixir-format
 msgid "Enable"
 msgstr "Luba"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:900
-#: lib/phoenix_kit_entities/web/entities_settings.ex:933
+#: lib/phoenix_kit_entities/web/entities_settings.ex:897
+#: lib/phoenix_kit_entities/web/entities_settings.ex:930
 #, elixir-autogen, elixir-format
 msgid "Enable All"
 msgstr "Luba kõik"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1037
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1034
 #, elixir-autogen, elixir-format
 msgid "Enable Definition sync"
 msgstr "Luba definitsioonide sünkroonimine"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2272
+#: lib/phoenix_kit_entities/web/entity_form.ex:2308
 #, elixir-autogen, elixir-format
 msgid "Enable Public Form"
 msgstr "Luba avalik vorm"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1070
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Enable Records sync"
 msgstr "Luba kirjete sünkroonimine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:837
+#: lib/phoenix_kit_entities/web/entities_settings.ex:834
 #, elixir-autogen, elixir-format
 msgid "Enable System"
 msgstr "Luba süsteem"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1082
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Enable definition sync first"
 msgstr "Kõigepealt lubage definitsioonide sünkroonimine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:809
+#: lib/phoenix_kit_entities/web/entities_settings.ex:806
 #, elixir-autogen, elixir-format
 msgid "Enable or disable the entire entities module"
 msgstr "Luba või keela kogu üksuste moodul"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2254
+#: lib/phoenix_kit_entities/web/entity_form.ex:2290
 #, elixir-autogen, elixir-format
 msgid "Enable this entity to be used as an embeddable form on public pages"
 msgstr "Luba seda üksust kasutada avalikel lehtedel manustatava vormina"
 
 #: lib/phoenix_kit_entities/form_builder.ex:715
-#: lib/phoenix_kit_entities/web/entities_settings.ex:716
+#: lib/phoenix_kit_entities/web/entities_settings.ex:720
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "Lubatud"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:292
+#: lib/phoenix_kit_entities/web/entities_settings.ex:296
 #, elixir-autogen, elixir-format
 msgid "Enabled data sync for %{count} entities"
 msgstr "Andmete sünkroonimine lubati %{count} üksuse jaoks"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:262
+#: lib/phoenix_kit_entities/web/entities_settings.ex:266
 #, elixir-autogen, elixir-format
 msgid "Enabled definition sync for %{count} entities"
 msgstr "Definitsioonide sünkroonimine lubati %{count} üksuse jaoks"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:835
+#: lib/phoenix_kit_entities/web/entities_settings.ex:832
 #, elixir-autogen, elixir-format
 msgid "Enabling…"
 msgstr "Lubamine…"
@@ -868,45 +867,40 @@ msgstr "Sisesta oma väärtus"
 msgid "Enter rich text content..."
 msgstr "Sisesta rikastekst..."
 
-#: lib/phoenix_kit_entities.ex:1161
-#: lib/phoenix_kit_entities.ex:1218
-#: lib/phoenix_kit_entities.ex:1359
+#: lib/phoenix_kit_entities.ex:1165
+#: lib/phoenix_kit_entities.ex:1222
+#: lib/phoenix_kit_entities.ex:1363
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1001
 #: lib/phoenix_kit_entities/web/entities.ex:33
-#: lib/phoenix_kit_entities/web/entities_settings.ex:848
+#: lib/phoenix_kit_entities/web/entities_settings.ex:34
+#: lib/phoenix_kit_entities/web/entities_settings.ex:845
 #, elixir-autogen, elixir-format
 msgid "Entities"
 msgstr "Üksused"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:33
-#: lib/phoenix_kit_entities/web/entities_settings.ex:791
-#, elixir-autogen, elixir-format
-msgid "Entities Settings"
-msgstr "Üksuste seaded"
-
-#: lib/phoenix_kit_entities/web/entities_settings.ex:807
+#: lib/phoenix_kit_entities/web/entities_settings.ex:804
 #, elixir-autogen, elixir-format
 msgid "Entities System"
 msgstr "Üksuste süsteem"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:108
+#: lib/phoenix_kit_entities/web/entities_settings.ex:112
 #, elixir-autogen, elixir-format
 msgid "Entities settings saved successfully"
 msgstr "Üksuste seaded salvestati edukalt"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:171
+#: lib/phoenix_kit_entities/web/entities_settings.ex:175
 #, elixir-autogen, elixir-format
 msgid "Entities system disabled successfully"
 msgstr "Üksuste süsteem keelati edukalt"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:145
+#: lib/phoenix_kit_entities/web/entities_settings.ex:149
 #, elixir-autogen, elixir-format
 msgid "Entities system enabled successfully"
 msgstr "Üksuste süsteem lubati edukalt"
 
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1404
 #: lib/phoenix_kit_entities/web/entities.ex:273
-#: lib/phoenix_kit_entities/web/entities_settings.ex:985
+#: lib/phoenix_kit_entities/web/entities_settings.ex:982
 #, elixir-autogen, elixir-format
 msgid "Entity"
 msgstr "Üksus"
@@ -923,12 +917,12 @@ msgstr "Üksus „%{name}” edukalt taastatud"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:918
 #: lib/phoenix_kit_entities/web/data_navigator.ex:693
-#: lib/phoenix_kit_entities/web/entity_form.ex:1213
+#: lib/phoenix_kit_entities/web/entity_form.ex:1242
 #, elixir-autogen, elixir-format
 msgid "Entity '%{name}' was %{status} in another session."
 msgstr "Üksus „%{name}” oli teises seansis %{status}."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1789
+#: lib/phoenix_kit_entities/web/entity_form.ex:1825
 #, elixir-autogen, elixir-format
 msgid "Entity Information"
 msgstr "Üksuse teave"
@@ -938,12 +932,12 @@ msgstr "Üksuse teave"
 msgid "Entity Manager"
 msgstr "Üksuste haldur"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1886
+#: lib/phoenix_kit_entities/web/entity_form.ex:1922
 #, elixir-autogen, elixir-format
 msgid "Entity Name (Plural)"
 msgstr "Üksuse nimi (mitmus)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1866
+#: lib/phoenix_kit_entities/web/entity_form.ex:1902
 #, elixir-autogen, elixir-format
 msgid "Entity Name (Singular)"
 msgstr "Üksuse nimi (ainsus)"
@@ -954,16 +948,16 @@ msgstr "Üksuse nimi (ainsus)"
 msgid "Entity Type"
 msgstr "Üksuse tüüp"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1067
-#: lib/phoenix_kit_entities/web/entity_form.ex:1100
+#: lib/phoenix_kit_entities/web/entity_form.ex:1096
+#: lib/phoenix_kit_entities/web/entity_form.ex:1129
 #, elixir-autogen, elixir-format
 msgid "Entity created successfully"
 msgstr "Üksus edukalt loodud"
 
 #: lib/phoenix_kit_entities/controllers/entity_form_controller.ex:65
-#: lib/phoenix_kit_entities/web/entities_settings.ex:219
-#: lib/phoenix_kit_entities/web/entities_settings.ex:233
-#: lib/phoenix_kit_entities/web/entities_settings.ex:243
+#: lib/phoenix_kit_entities/web/entities_settings.ex:223
+#: lib/phoenix_kit_entities/web/entities_settings.ex:237
+#: lib/phoenix_kit_entities/web/entities_settings.ex:247
 #, elixir-autogen, elixir-format
 msgid "Entity not found"
 msgstr "Üksust ei leitud"
@@ -978,8 +972,8 @@ msgstr "Üksust ei leitud."
 msgid "Entity relations coming soon"
 msgstr "Üksustevahelised seosed lisatakse peagi"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1066
-#: lib/phoenix_kit_entities/web/entity_form.ex:1093
+#: lib/phoenix_kit_entities/web/entity_form.ex:1095
+#: lib/phoenix_kit_entities/web/entity_form.ex:1122
 #, elixir-autogen, elixir-format
 msgid "Entity saved successfully"
 msgstr "Üksus edukalt salvestatud"
@@ -989,7 +983,7 @@ msgstr "Üksus edukalt salvestatud"
 msgid "Entity schema updated. Form revalidated."
 msgstr "Üksuse skeem on uuendatud. Vorm on uuesti valideeritud."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1223
+#: lib/phoenix_kit_entities/web/entity_form.ex:1252
 #, elixir-autogen, elixir-format
 msgid "Entity updated in another session."
 msgstr "Üksust uuendati teises seansis."
@@ -1000,67 +994,67 @@ msgstr "Üksust uuendati teises seansis."
 msgid "Entity was deleted in another session."
 msgstr "Üksus kustutati teises seansis."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:960
+#: lib/phoenix_kit_entities/web/entities_settings.ex:957
 #, elixir-autogen, elixir-format
 msgid "Export All"
 msgstr "Ekspordi kõik"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2851
+#: lib/phoenix_kit_entities/web/entity_form.ex:2887
 #, elixir-autogen, elixir-format
 msgid "Export Now"
 msgstr "Ekspordi kohe"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1118
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1115
 #, elixir-autogen, elixir-format
 msgid "Export Path"
 msgstr "Ekspordi tee"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:519
+#: lib/phoenix_kit_entities/web/entities_settings.ex:523
 #, elixir-autogen, elixir-format
 msgid "Export complete. %{defs} definitions, %{data} records."
 msgstr "Eksport lõpetatud. %{defs} definitsiooni, %{data} kirjet."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:442
-#: lib/phoenix_kit_entities/web/entity_form.ex:910
+#: lib/phoenix_kit_entities/web/entities_settings.ex:446
+#: lib/phoenix_kit_entities/web/entity_form.ex:939
 #, elixir-autogen, elixir-format
 msgid "Export failed"
 msgstr "Eksport ebaõnnestus"
 
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1093
 #: lib/phoenix_kit_entities/web/entities_settings.ex:1096
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1099
 #, elixir-autogen, elixir-format
 msgid "Export now"
 msgstr "Ekspordi kohe"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2910
+#: lib/phoenix_kit_entities/web/entity_form.ex:2946
 #, elixir-autogen, elixir-format
 msgid "Export path"
 msgstr "Ekspordi tee"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:429
-#: lib/phoenix_kit_entities/web/entity_form.ex:897
+#: lib/phoenix_kit_entities/web/entities_settings.ex:433
+#: lib/phoenix_kit_entities/web/entity_form.ex:926
 #, elixir-autogen, elixir-format
 msgid "Exported %{name} (definition + records)"
 msgstr "Eksporditud %{name} (definitsioon + kirjed)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:432
-#: lib/phoenix_kit_entities/web/entity_form.ex:900
+#: lib/phoenix_kit_entities/web/entities_settings.ex:436
+#: lib/phoenix_kit_entities/web/entity_form.ex:929
 #, elixir-autogen, elixir-format
 msgid "Exported %{name} (definition only)"
 msgstr "Eksporditud %{name} (ainult definitsioon)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1124
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1121
 #, elixir-autogen, elixir-format
 msgid "Exported Files"
 msgstr "Eksporditud failid"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:957
+#: lib/phoenix_kit_entities/web/entities_settings.ex:954
 #, elixir-autogen, elixir-format
 msgid "Exporting..."
 msgstr "Eksportimine..."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:952
-#: lib/phoenix_kit_entities/web/entity_form.ex:2847
+#: lib/phoenix_kit_entities/web/entities_settings.ex:949
+#: lib/phoenix_kit_entities/web/entity_form.ex:2883
 #, elixir-autogen, elixir-format
 msgid "Exporting…"
 msgstr "Eksportimine…"
@@ -1080,12 +1074,12 @@ msgstr "Üksuse arhiveerimine ebaõnnestus"
 msgid "Failed to delete record"
 msgstr "Kirje kustutamine ebaõnnestus"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:180
+#: lib/phoenix_kit_entities/web/entities_settings.ex:184
 #, elixir-autogen, elixir-format
 msgid "Failed to disable entities: %{reason}"
 msgstr "Üksuste keelamine ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:154
+#: lib/phoenix_kit_entities/web/entities_settings.ex:158
 #, elixir-autogen, elixir-format
 msgid "Failed to enable entities: %{reason}"
 msgstr "Üksuste lubamine ebaõnnestus: %{reason}"
@@ -1105,7 +1099,7 @@ msgstr "Üksuse taastamine ebaõnnestus"
 msgid "Failed to restore record"
 msgstr "Kirje taastamine ebaõnnestus"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:117
+#: lib/phoenix_kit_entities/web/entities_settings.ex:121
 #, elixir-autogen, elixir-format
 msgid "Failed to save settings: %{reason}"
 msgstr "Seadete salvestamine ebaõnnestus: %{reason}"
@@ -1123,14 +1117,14 @@ msgstr "Uue järjestuse salvestamine ebaõnnestus"
 msgid "Failed to trash record"
 msgstr "Kirje prügikasti liigutamine ebaõnnestus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:860
-#: lib/phoenix_kit_entities/web/entity_form.ex:883
+#: lib/phoenix_kit_entities/web/entity_form.ex:889
+#: lib/phoenix_kit_entities/web/entity_form.ex:912
 #, elixir-autogen, elixir-format
 msgid "Failed to update backup settings"
 msgstr "Varundusseadete uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:222
-#: lib/phoenix_kit_entities/web/entities_settings.ex:236
+#: lib/phoenix_kit_entities/web/entities_settings.ex:226
+#: lib/phoenix_kit_entities/web/entities_settings.ex:240
 #, elixir-autogen, elixir-format
 msgid "Failed to update mirror settings"
 msgstr "Peegeldamise seadete uuendamine ebaõnnestus"
@@ -1145,27 +1139,27 @@ msgstr "Oleku uuendamine ebaõnnestus"
 msgid "Field Configuration:"
 msgstr "Välja seadistus:"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3017
+#: lib/phoenix_kit_entities/web/entity_form.ex:3053
 #, elixir-autogen, elixir-format
 msgid "Field Label"
 msgstr "Välja silt"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3022
+#: lib/phoenix_kit_entities/web/entity_form.ex:3058
 #, elixir-autogen, elixir-format
 msgid "Field Name"
 msgstr "Välja nimi"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2994
+#: lib/phoenix_kit_entities/web/entity_form.ex:3030
 #, elixir-autogen, elixir-format
 msgid "Field Type"
 msgstr "Välja tüüp"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1421
+#: lib/phoenix_kit_entities/web/entity_form.ex:1450
 #, elixir-autogen, elixir-format
 msgid "Field key '%{key}' already exists. Please use a unique key."
 msgstr "Välja võti '%{key}' on juba olemas. Kasuta unikaalset võtit."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1354
+#: lib/phoenix_kit_entities/web/entity_form.ex:1383
 #, elixir-autogen, elixir-format
 msgid "Field type '%{type}' requires at least one option"
 msgstr "Välja tüüp '%{type}' nõuab vähemalt ühte valikut"
@@ -1185,17 +1179,17 @@ msgstr "Väljade valideerimisvead: %{errors}"
 msgid "Fields"
 msgstr "Väljad"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3092
+#: lib/phoenix_kit_entities/web/entity_form.ex:3128
 #, elixir-autogen, elixir-format
 msgid "File Upload Settings"
 msgstr "Failide üleslaadimise seaded"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1001
+#: lib/phoenix_kit_entities/web/entities_settings.ex:998
 #, elixir-autogen, elixir-format
 msgid "File exists"
 msgstr "Fail on juba olemas"
 
-#: lib/phoenix_kit_entities/field_types.ex:397
+#: lib/phoenix_kit_entities/field_types.ex:403
 #, elixir-autogen, elixir-format
 msgid "File upload field with configurable constraints"
 msgstr "Faili üleslaadimise väli seadistatavate piirangutega"
@@ -1210,22 +1204,22 @@ msgstr "Faili üleslaadimine administraatori vormides nõuab LiveView üleslaadi
 msgid "File uploads work in public forms (contact forms, etc.)"
 msgstr "Failide üleslaadimine töötab avalikes vormides (kontaktvormid jne)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2303
+#: lib/phoenix_kit_entities/web/entity_form.ex:2339
 #, elixir-autogen, elixir-format
 msgid "Form Description (Optional)"
 msgstr "Vormi kirjeldus (valikuline)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2349
+#: lib/phoenix_kit_entities/web/entity_form.ex:2385
 #, elixir-autogen, elixir-format
 msgid "Form Fields"
 msgstr "Vormi väljad"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2734
+#: lib/phoenix_kit_entities/web/entity_form.ex:2770
 #, elixir-autogen, elixir-format
 msgid "Form Statistics"
 msgstr "Vormi statistika"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2288
+#: lib/phoenix_kit_entities/web/entity_form.ex:2324
 #, elixir-autogen, elixir-format
 msgid "Form Title"
 msgstr "Vormi pealkiri"
@@ -1236,7 +1230,7 @@ msgstr "Vormi pealkiri"
 msgid "Form configuration error."
 msgstr "Vormi seadistuse viga."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:826
+#: lib/phoenix_kit_entities/web/entity_form.ex:855
 #, elixir-autogen, elixir-format
 msgid "Form statistics have been reset"
 msgstr "Vormi statistika on lähtestatud"
@@ -1247,25 +1241,25 @@ msgstr "Vormi statistika on lähtestatud"
 msgid "Form submitted successfully!"
 msgstr "Vorm on edukalt esitatud!"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1486
+#: lib/phoenix_kit_entities/web/entity_form.ex:1515
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "Üldine"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:1669
 #: lib/phoenix_kit_entities/web/data_form.ex:1829
-#: lib/phoenix_kit_entities/web/entity_form.ex:1928
-#: lib/phoenix_kit_entities/web/entity_form.ex:3041
+#: lib/phoenix_kit_entities/web/entity_form.ex:1964
+#: lib/phoenix_kit_entities/web/entity_form.ex:3077
 #, elixir-autogen, elixir-format
 msgid "Generate"
 msgstr "Genereeri"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1925
+#: lib/phoenix_kit_entities/web/entity_form.ex:1961
 #, elixir-autogen, elixir-format
 msgid "Generate from Entity Name"
 msgstr "Genereeri üksuse nimest"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3039
+#: lib/phoenix_kit_entities/web/entity_form.ex:3075
 #, elixir-autogen, elixir-format
 msgid "Generate from Field Label"
 msgstr "Genereeri välja sildist"
@@ -1292,75 +1286,75 @@ msgstr "Alustage oma esimese kohandatud sisutüübi loomisega. Mõelge kaubamär
 msgid "Go to Data"
 msgstr "Mine andmete juurde"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2014
+#: lib/phoenix_kit_entities/web/entity_form.ex:2050
 #, elixir-autogen, elixir-format
 msgid "Heroicon name or click Browse"
 msgstr "Heroiconi nimi või klõpsa „Sirvi“"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2503
+#: lib/phoenix_kit_entities/web/entity_form.ex:2539
 #, elixir-autogen, elixir-format
 msgid "Honeypot Protection"
 msgstr "Honeypot-kaitse"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1215
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1310
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1212
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1307
 #, elixir-autogen, elixir-format
 msgid "IDENTICAL"
 msgstr "IDENTNE"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1975
+#: lib/phoenix_kit_entities/web/entity_form.ex:2011
 #, elixir-autogen, elixir-format
 msgid "Icon (Optional)"
 msgstr "Ikoon (vabatahtlik)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:974
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1370
+#: lib/phoenix_kit_entities/web/entities_settings.ex:971
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1367
 #, elixir-autogen, elixir-format
 msgid "Import"
 msgstr "Import"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1284
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1281
 #, elixir-autogen, elixir-format
 msgid "Import All"
 msgstr "Impordi kõik"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1431
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1428
 #, elixir-autogen, elixir-format
 msgid "Import All Entities"
 msgstr "Impordi kõik üksused"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1154
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1151
 #, elixir-autogen, elixir-format
 msgid "Import Entities"
 msgstr "Impordi üksused"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1422
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1419
 #, elixir-autogen, elixir-format
 msgid "Import This Entity"
 msgstr "Impordi see üksus"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:548
+#: lib/phoenix_kit_entities/web/entities_settings.ex:552
 #, elixir-autogen, elixir-format
 msgid "Import complete. Definitions: %{dc} created, %{du} updated, %{ds} skipped. Data: %{rc} created, %{ru} updated, %{rs} skipped."
 msgstr "Import lõpetatud. Definitsioonid: loodud %{dc}, uuendatud %{du}, vahele jäetud %{ds}. Andmed: loodud %{rc}, uuendatud %{ru}, vahele jäetud %{rs}."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1248
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1245
 #, elixir-autogen, elixir-format
 msgid "Import/Overwrite"
 msgstr "Import/Ülekirjutamine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:971
+#: lib/phoenix_kit_entities/web/entities_settings.ex:968
 #, elixir-autogen, elixir-format
 msgid "Importing..."
 msgstr "Importimine..."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1418
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1427
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1415
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1424
 #, elixir-autogen, elixir-format
 msgid "Importing…"
 msgstr "Importimine…"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1493
+#: lib/phoenix_kit_entities/web/entity_form.ex:1522
 #, elixir-autogen, elixir-format
 msgid "Interface"
 msgstr "Liides"
@@ -1375,7 +1369,7 @@ msgstr "Vale välja tüüp: %{type}"
 msgid "Invalid format."
 msgstr "Vale vorming."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1135
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1132
 #, elixir-autogen, elixir-format
 msgid "Last Export"
 msgstr "Viimane eksport"
@@ -1391,12 +1385,12 @@ msgstr "Jätke tühjaks automaatseks genereerimiseks pealkirja põhjal"
 msgid "Leave empty to use the primary language slug"
 msgstr "Jätke tühjaks põhikeele slugi kasutamiseks"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2664
+#: lib/phoenix_kit_entities/web/entity_form.ex:2700
 #, elixir-autogen, elixir-format
 msgid "Limit submissions to 5 per minute per IP address"
 msgstr "Piira esitusi 5-ga minutis ühe IP-aadressi kohta"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:987
+#: lib/phoenix_kit_entities/web/entities_settings.ex:984
 #, elixir-autogen, elixir-format
 msgid "Live Sync"
 msgstr "Reaalajas sünkroonimine"
@@ -1406,17 +1400,17 @@ msgstr "Reaalajas sünkroonimine"
 msgid "Manage custom content types and field definitions"
 msgstr "Hallake kohandatud sisutüüpe ja väljade määratlusi"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2076
+#: lib/phoenix_kit_entities/web/entity_form.ex:2112
 #, elixir-autogen, elixir-format
 msgid "Manual (custom order)"
 msgstr "Käsitsi (kohandatud järjekord)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2082
+#: lib/phoenix_kit_entities/web/entity_form.ex:2118
 #, elixir-autogen, elixir-format
 msgid "Manual mode enables drag-and-drop reordering of records"
 msgstr "Käsitsirežiim võimaldab kirjete järjekorda lohistades muuta"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3117
+#: lib/phoenix_kit_entities/web/entity_form.ex:3153
 #, elixir-autogen, elixir-format
 msgid "Max File Size (MB)"
 msgstr "Maksimaalne faili suurus (MB)"
@@ -1426,7 +1420,7 @@ msgstr "Maksimaalne faili suurus (MB)"
 msgid "Max files:"
 msgstr "Max failide arv:"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3110
+#: lib/phoenix_kit_entities/web/entity_form.ex:3146
 #, elixir-autogen, elixir-format
 msgid "Max number of files users can upload (1-20)"
 msgstr "Maksimaalne failide arv, mida kasutaja saab üles laadida (1-20)"
@@ -1436,23 +1430,23 @@ msgstr "Maksimaalne failide arv, mida kasutaja saab üles laadida (1-20)"
 msgid "Max size:"
 msgstr "Max suurus:"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3097
+#: lib/phoenix_kit_entities/web/entity_form.ex:3133
 #, elixir-autogen, elixir-format
 msgid "Maximum Files"
 msgstr "Failide maksimaalne arv"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3131
+#: lib/phoenix_kit_entities/web/entity_form.ex:3167
 #, elixir-autogen, elixir-format
 msgid "Maximum size per file in megabytes (1-100 MB)"
 msgstr "Maksimaalne ühe faili suurus megabaitides (1-100 MB)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1256
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1382
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1253
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1379
 #, elixir-autogen, elixir-format
 msgid "Merge"
 msgstr "Ühenda"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:873
+#: lib/phoenix_kit_entities/web/entities_settings.ex:870
 #, elixir-autogen, elixir-format
 msgid "Mirror & Export"
 msgstr "Peegeldamine ja eksport"
@@ -1462,7 +1456,7 @@ msgstr "Peegeldamine ja eksport"
 msgid "Missing required keys: %{keys}"
 msgstr "Puuduvad kohustuslikud võtmed: %{keys}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2156
+#: lib/phoenix_kit_entities/web/entity_form.ex:2192
 #, elixir-autogen, elixir-format
 msgid "Move down"
 msgstr "Liiguta alla"
@@ -1480,7 +1474,7 @@ msgstr "Liigutada valitud kirjed prügikasti? Vajadusel saab need taastada filtr
 msgid "Move to trash"
 msgstr "Liiguta prügikasti"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2146
+#: lib/phoenix_kit_entities/web/entity_form.ex:2182
 #, elixir-autogen, elixir-format
 msgid "Move up"
 msgstr "Liiguta üles"
@@ -1490,23 +1484,23 @@ msgstr "Liiguta üles"
 msgid "Multi-language support is not enabled."
 msgstr "Mitmekeelsuse tugi ei ole lubatud."
 
-#: lib/phoenix_kit_entities/field_types.ex:385
+#: lib/phoenix_kit_entities/field_types.ex:391
 #, elixir-autogen, elixir-format
 msgid "Multi-line text input"
 msgstr "Mitmerealine tekstiväli"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1211
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1306
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1208
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1303
 #, elixir-autogen, elixir-format
 msgid "NEW"
 msgstr "UUS"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1489
+#: lib/phoenix_kit_entities/web/entity_form.ex:1518
 #, elixir-autogen, elixir-format
 msgid "Navigation"
 msgstr "Navigeerimine"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1140
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1137
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "Mitte kunagi"
@@ -1553,12 +1547,12 @@ msgstr "Ühtegi üksust pole veel loodud"
 msgid "No Entities Yet"
 msgstr "Üksusi pole veel"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2118
+#: lib/phoenix_kit_entities/web/entity_form.ex:2154
 #, elixir-autogen, elixir-format
 msgid "No Fields Yet"
 msgstr "Ühtegi välja pole veel"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1394
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1391
 #, elixir-autogen, elixir-format
 msgid "No data records"
 msgstr "Andmekirjeid pole"
@@ -1568,12 +1562,12 @@ msgstr "Andmekirjeid pole"
 msgid "No data records match your current filters. Try adjusting your search criteria or clearing the filters."
 msgstr "Ühtegi andmekirjet ei vasta praegustele filtritele. Proovi muuta otsingutingimusi või tühjenda filtrid."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1110
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1107
 #, elixir-autogen, elixir-format
 msgid "No entities defined yet"
 msgstr "Üksusi pole veel määratletud"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1401
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1398
 #, elixir-autogen, elixir-format
 msgid "No entities found to import"
 msgstr "Importimiseks ei leitud ühtegi üksust"
@@ -1583,12 +1577,12 @@ msgstr "Importimiseks ei leitud ühtegi üksust"
 msgid "No entity linked to this project yet."
 msgstr "Selle projektiga ei ole veel ühtegi üksust seotud."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3310
+#: lib/phoenix_kit_entities/web/entity_form.ex:3346
 #, elixir-autogen, elixir-format
 msgid "No icons found matching your search"
 msgstr "Otsingule vastavaid ikoone ei leitud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3198
+#: lib/phoenix_kit_entities/web/entity_form.ex:3234
 #, elixir-autogen, elixir-format
 msgid "No options added yet. Click \"Add Option\" to get started."
 msgstr "Valikuid pole veel lisatud. Alustamiseks klõpsa \"Lisa valik\"."
@@ -1643,23 +1637,23 @@ msgstr "Kirjeid pole veel."
 msgid "Not authorized"
 msgstr "Ligipääs puudub"
 
-#: lib/phoenix_kit_entities/field_types.ex:430
+#: lib/phoenix_kit_entities/field_types.ex:436
 #, elixir-autogen, elixir-format
 msgid "Number"
 msgstr "Number"
 
-#: lib/phoenix_kit_entities/field_types.ex:367
-#: lib/phoenix_kit_entities/web/entity_form.ex:1467
+#: lib/phoenix_kit_entities/field_types.ex:373
+#: lib/phoenix_kit_entities/web/entity_form.ex:1496
 #, elixir-autogen, elixir-format
 msgid "Numeric"
 msgstr "Numbrid"
 
-#: lib/phoenix_kit_entities/field_types.ex:389
+#: lib/phoenix_kit_entities/field_types.ex:395
 #, elixir-autogen, elixir-format
 msgid "Numeric input (integer or decimal)"
 msgstr "Numbriline sisend (täisarv või kümnendmurd)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2051
+#: lib/phoenix_kit_entities/web/entity_form.ex:2087
 #, elixir-autogen, elixir-format
 msgid "Only published can be used"
 msgstr "Kasutada saab ainult avaldatuid"
@@ -1669,18 +1663,18 @@ msgstr "Kasutada saab ainult avaldatuid"
 msgid "Open in Entities"
 msgstr "Ava Üksustes"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3182
+#: lib/phoenix_kit_entities/web/entity_form.ex:3218
 #, elixir-autogen, elixir-format
 msgid "Option value"
 msgstr "Valiku väärtus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2232
-#: lib/phoenix_kit_entities/web/entity_form.ex:3161
+#: lib/phoenix_kit_entities/web/entity_form.ex:2268
+#: lib/phoenix_kit_entities/web/entity_form.ex:3197
 #, elixir-autogen, elixir-format
 msgid "Options"
 msgstr "Valikud"
 
-#: lib/phoenix_kit_entities/field_types.ex:542
+#: lib/phoenix_kit_entities/field_types.ex:548
 #: lib/phoenix_kit_entities/form_builder.ex:792
 #: lib/phoenix_kit_entities/form_builder.ex:861
 #: lib/phoenix_kit_entities/form_builder.ex:925
@@ -1720,7 +1714,7 @@ msgstr "Vali üksus, et vaadata selle andmeid"
 msgid "Please take your time filling out the form."
 msgstr "Palun ärge kiirustage vormi täitmisega."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1891
+#: lib/phoenix_kit_entities/web/entity_form.ex:1927
 #, elixir-autogen, elixir-format
 msgid "Plural form (e.g., \"Brands\")"
 msgstr "Mitmuse vorm (nt \"Brändid\")"
@@ -1730,7 +1724,7 @@ msgstr "Mitmuse vorm (nt \"Brändid\")"
 msgid "Positions saved, but sort mode could not be switched to manual — order may not survive a refresh."
 msgstr "Positsioonid salvestati, kuid sortimisrežiimi ei õnnestunud käsitsirežiimile lülitada — järjestus ei pruugi lehe värskendamisel säilida."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2251
+#: lib/phoenix_kit_entities/web/entity_form.ex:2287
 #, elixir-autogen, elixir-format
 msgid "Public Form Configuration"
 msgstr "Avaliku vormi seadistus"
@@ -1745,42 +1739,42 @@ msgstr "Selle üksuse avalik vorm ei ole lubatud"
 #: lib/phoenix_kit_entities/web/data_navigator.ex:890
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1108
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1260
-#: lib/phoenix_kit_entities/web/entities_settings.ex:856
+#: lib/phoenix_kit_entities/web/entities_settings.ex:853
 #, elixir-autogen, elixir-format
 msgid "Published"
 msgstr "Avaldatud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2030
+#: lib/phoenix_kit_entities/web/entity_form.ex:2066
 #, elixir-autogen, elixir-format
 msgid "Published (active)"
 msgstr "Avaldatud (aktiivne)"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:845
+#: lib/phoenix_kit_entities/web/entities_settings.ex:842
 #, elixir-autogen, elixir-format
 msgid "Quick Stats"
 msgstr "Kiirstatistika"
 
-#: lib/phoenix_kit_entities/field_types.ex:434
+#: lib/phoenix_kit_entities/field_types.ex:440
 #, elixir-autogen, elixir-format
 msgid "Radio Buttons"
 msgstr "Raadionupud"
 
-#: lib/phoenix_kit_entities/field_types.ex:393
+#: lib/phoenix_kit_entities/field_types.ex:399
 #, elixir-autogen, elixir-format
 msgid "Radio button group (single choice)"
 msgstr "Raadionuppude rühm (üks valik)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2661
+#: lib/phoenix_kit_entities/web/entity_form.ex:2697
 #, elixir-autogen, elixir-format
 msgid "Rate Limiting"
 msgstr "Kiiruse piiramine"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2444
+#: lib/phoenix_kit_entities/web/entity_form.ex:2480
 #, elixir-autogen, elixir-format
 msgid "Record IP address, browser, device info, and referrer for each submission"
 msgstr "Salvesta iga esituse kohta IP-aadress, brauser, seadme teave ja viitaja"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2059
+#: lib/phoenix_kit_entities/web/entity_form.ex:2095
 #, elixir-autogen, elixir-format
 msgid "Record Ordering"
 msgstr "Kirjete järjestus"
@@ -1825,54 +1819,54 @@ msgstr "Kirje taastati prügikastist"
 msgid "Record updated in another session. Showing latest changes."
 msgstr "Kirjet uuendati teises seansis. Kuvatakse uusimad muudatused."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:919
-#: lib/phoenix_kit_entities/web/entities_settings.ex:986
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1048
+#: lib/phoenix_kit_entities/web/entities_settings.ex:916
+#: lib/phoenix_kit_entities/web/entities_settings.ex:983
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1045
 #, elixir-autogen, elixir-format
 msgid "Records"
 msgstr "Kirjed"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2530
-#: lib/phoenix_kit_entities/web/entity_form.ex:2620
-#: lib/phoenix_kit_entities/web/entity_form.ex:2699
+#: lib/phoenix_kit_entities/web/entity_form.ex:2566
+#: lib/phoenix_kit_entities/web/entity_form.ex:2656
+#: lib/phoenix_kit_entities/web/entity_form.ex:2735
 #, elixir-autogen, elixir-format
 msgid "Reject silently (fake success)"
 msgstr "Lükka tagasi märkamatult (näiline õnnestumine)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2539
-#: lib/phoenix_kit_entities/web/entity_form.ex:2611
-#: lib/phoenix_kit_entities/web/entity_form.ex:2690
+#: lib/phoenix_kit_entities/web/entity_form.ex:2575
+#: lib/phoenix_kit_entities/web/entity_form.ex:2647
+#: lib/phoenix_kit_entities/web/entity_form.ex:2726
 #, elixir-autogen, elixir-format
 msgid "Reject with error message"
 msgstr "Lükka tagasi veateatega"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2762
+#: lib/phoenix_kit_entities/web/entity_form.ex:2798
 #, elixir-autogen, elixir-format
 msgid "Rejected"
 msgstr "Tagasi lükatud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1357
+#: lib/phoenix_kit_entities/web/entity_form.ex:1386
 #, elixir-autogen, elixir-format
 msgid "Relation field requires a target entity"
 msgstr "Seose väli nõuab sihtüksust"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2174
+#: lib/phoenix_kit_entities/web/entity_form.ex:2210
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr "Kohustuslik"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3064
+#: lib/phoenix_kit_entities/web/entity_form.ex:3100
 #, elixir-autogen, elixir-format
 msgid "Required Field"
 msgstr "Kohustuslik väli"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:1960
-#: lib/phoenix_kit_entities/web/entity_form.ex:2940
+#: lib/phoenix_kit_entities/web/entity_form.ex:2976
 #, elixir-autogen, elixir-format
 msgid "Reset Changes"
 msgstr "Lähtesta muudatused"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2819
+#: lib/phoenix_kit_entities/web/entity_form.ex:2855
 #, elixir-autogen, elixir-format
 msgid "Reset Statistics"
 msgstr "Lähtesta statistika"
@@ -1893,7 +1887,7 @@ msgstr "Taasta"
 msgid "Restore from trash"
 msgstr "Taasta prügikastist"
 
-#: lib/phoenix_kit_entities/field_types.ex:429
+#: lib/phoenix_kit_entities/field_types.ex:435
 #, elixir-autogen, elixir-format
 msgid "Rich Text Editor"
 msgstr "Rikastekstiredaktor"
@@ -1903,21 +1897,21 @@ msgstr "Rikastekstiredaktor"
 msgid "Rich text editor (HTML supported)"
 msgstr "Rikastekstiredaktor (HTML on toetatud)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2557
-#: lib/phoenix_kit_entities/web/entity_form.ex:2638
-#: lib/phoenix_kit_entities/web/entity_form.ex:2717
+#: lib/phoenix_kit_entities/web/entity_form.ex:2593
+#: lib/phoenix_kit_entities/web/entity_form.ex:2674
+#: lib/phoenix_kit_entities/web/entity_form.ex:2753
 #, elixir-autogen, elixir-format
 msgid "Save and log warning"
 msgstr "Salvesta ja logi hoiatus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2548
-#: lib/phoenix_kit_entities/web/entity_form.ex:2629
-#: lib/phoenix_kit_entities/web/entity_form.ex:2708
+#: lib/phoenix_kit_entities/web/entity_form.ex:2584
+#: lib/phoenix_kit_entities/web/entity_form.ex:2665
+#: lib/phoenix_kit_entities/web/entity_form.ex:2744
 #, elixir-autogen, elixir-format
 msgid "Save but mark as suspicious"
 msgstr "Salvesta, kuid märgi kahtlaseks"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2921
+#: lib/phoenix_kit_entities/web/entity_form.ex:2957
 #, elixir-autogen, elixir-format
 msgid "Save the entity first to configure backup settings."
 msgstr "Varunduse seadete häälestamiseks salvesta esmalt üksus."
@@ -1925,10 +1919,10 @@ msgstr "Varunduse seadete häälestamiseks salvesta esmalt üksus."
 #: lib/phoenix_kit_entities/components/live_data_form.ex:759
 #: lib/phoenix_kit_entities/web/data_form.ex:1561
 #: lib/phoenix_kit_entities/web/data_form.ex:1968
-#: lib/phoenix_kit_entities/web/entity_form.ex:1767
-#: lib/phoenix_kit_entities/web/entity_form.ex:1777
-#: lib/phoenix_kit_entities/web/entity_form.ex:2949
-#: lib/phoenix_kit_entities/web/entity_form.ex:2959
+#: lib/phoenix_kit_entities/web/entity_form.ex:1803
+#: lib/phoenix_kit_entities/web/entity_form.ex:1813
+#: lib/phoenix_kit_entities/web/entity_form.ex:2985
+#: lib/phoenix_kit_entities/web/entity_form.ex:2995
 #, elixir-autogen, elixir-format
 msgid "Saving…"
 msgstr "Salvestamine…"
@@ -1938,22 +1932,22 @@ msgstr "Salvestamine…"
 msgid "Search by title or slug..."
 msgstr "Otsi pealkirja või slugi järgi..."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3274
+#: lib/phoenix_kit_entities/web/entity_form.ex:3310
 #, elixir-autogen, elixir-format
 msgid "Search icons..."
 msgstr "Otsi ikoone…"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2421
+#: lib/phoenix_kit_entities/web/entity_form.ex:2457
 #, elixir-autogen, elixir-format
 msgid "Security"
 msgstr "Turvalisus"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2773
+#: lib/phoenix_kit_entities/web/entity_form.ex:2809
 #, elixir-autogen, elixir-format
 msgid "Security Triggers"
 msgstr "Turvapäästikud"
 
-#: lib/phoenix_kit_entities/field_types.ex:433
+#: lib/phoenix_kit_entities/field_types.ex:439
 #, elixir-autogen, elixir-format
 msgid "Select Dropdown"
 msgstr "Rippmenüü"
@@ -1969,7 +1963,7 @@ msgstr "Vali üksuse tüüp"
 msgid "Select all"
 msgstr "Vali kõik"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3250
+#: lib/phoenix_kit_entities/web/entity_form.ex:3286
 #, elixir-autogen, elixir-format
 msgid "Select an Icon"
 msgstr "Vali ikoon"
@@ -1979,17 +1973,17 @@ msgstr "Vali ikoon"
 msgid "Select an option..."
 msgstr "Vali..."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2351
+#: lib/phoenix_kit_entities/web/entity_form.ex:2387
 #, elixir-autogen, elixir-format
 msgid "Select which fields to include in the public form. Fields not selected will only be visible in the admin data viewer."
 msgstr "Vali, millised väljad kaasata avalikule vormile. Valimata väljad on nähtavad ainult administraatori andmevaaturis."
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:205
+#: lib/phoenix_kit_entities/web/entities_settings.ex:209
 #, elixir-autogen, elixir-format
 msgid "Settings reset to defaults (not saved yet)"
 msgstr "Seaded lähtestati vaikeväärtustele (pole veel salvestatud)"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2469
+#: lib/phoenix_kit_entities/web/entity_form.ex:2505
 #, elixir-autogen, elixir-format
 msgid "Show detailed error messages when security checks fail (for troubleshooting only)"
 msgstr "Näita üksikasjalikke veateateid, kui turvakontrollid ebaõnnestuvad (ainult tõrkeotsinguks)"
@@ -1999,30 +1993,30 @@ msgstr "Näita üksikasjalikke veateateid, kui turvakontrollid ebaõnnestuvad (a
 msgid "Showing %{shown} of %{total} — the full list lives in the Entities admin."
 msgstr "Kuvatud %{shown} %{total}-st — täielik nimekiri asub Üksuste haldusliideses."
 
-#: lib/phoenix_kit_entities/field_types.ex:384
+#: lib/phoenix_kit_entities/field_types.ex:390
 #, elixir-autogen, elixir-format
 msgid "Single-line text input"
 msgstr "Üherealine tekstiväli"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1871
+#: lib/phoenix_kit_entities/web/entity_form.ex:1907
 #, elixir-autogen, elixir-format
 msgid "Singular form (e.g., \"Brand\")"
 msgstr "Ainsuse vorm (nt \"Bränd\")"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1239
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1358
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1236
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1355
 #, elixir-autogen, elixir-format
 msgid "Skip"
 msgstr "Jäta vahele"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1276
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1273
 #, elixir-autogen, elixir-format
 msgid "Skip All"
 msgstr "Jäta kõik vahele"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1294
-#: lib/phoenix_kit_entities/web/entity_form.ex:1907
-#: lib/phoenix_kit_entities/web/entity_form.ex:3034
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1291
+#: lib/phoenix_kit_entities/web/entity_form.ex:1943
+#: lib/phoenix_kit_entities/web/entity_form.ex:3070
 #, elixir-autogen, elixir-format
 msgid "Slug"
 msgstr "Slug"
@@ -2034,8 +2028,8 @@ msgid "Slug (URL-friendly identifier)"
 msgstr "Slug (URL-sõbralik identifikaator)"
 
 #: lib/phoenix_kit_entities/web/data_form.ex:360
-#: lib/phoenix_kit_entities/web/entities_settings.ex:128
-#: lib/phoenix_kit_entities/web/entity_form.ex:1044
+#: lib/phoenix_kit_entities/web/entities_settings.ex:132
+#: lib/phoenix_kit_entities/web/entity_form.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
 msgstr "Midagi läks valesti. Palun proovige uuesti."
@@ -2044,9 +2038,9 @@ msgstr "Midagi läks valesti. Palun proovige uuesti."
 #: lib/phoenix_kit_entities/web/data_form.ex:1854
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1406
 #: lib/phoenix_kit_entities/web/entities.ex:274
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1293
-#: lib/phoenix_kit_entities/web/entity_form.ex:1495
-#: lib/phoenix_kit_entities/web/entity_form.ex:2021
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1290
+#: lib/phoenix_kit_entities/web/entity_form.ex:1524
+#: lib/phoenix_kit_entities/web/entity_form.ex:2057
 #: lib/phoenix_kit_entities/web/project_data_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Status"
@@ -2059,48 +2053,48 @@ msgstr "Olek muudetud olekuks %{status}"
 
 #: lib/phoenix_kit_entities/components/entity_form.ex:41
 #: lib/phoenix_kit_entities/components/entity_form.ex:45
-#: lib/phoenix_kit_entities/web/entity_form.ex:2322
-#: lib/phoenix_kit_entities/web/entity_form.ex:2324
+#: lib/phoenix_kit_entities/web/entity_form.ex:2358
+#: lib/phoenix_kit_entities/web/entity_form.ex:2360
 #, elixir-autogen, elixir-format
 msgid "Submit"
 msgstr "Saada"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2317
+#: lib/phoenix_kit_entities/web/entity_form.ex:2353
 #, elixir-autogen, elixir-format
 msgid "Submit Button Text"
 msgstr "Saatmisnupu tekst"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2334
+#: lib/phoenix_kit_entities/web/entity_form.ex:2370
 #, elixir-autogen, elixir-format
 msgid "Success Message"
 msgstr "Õnnestumise teade"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2752
+#: lib/phoenix_kit_entities/web/entity_form.ex:2788
 #, elixir-autogen, elixir-format
 msgid "Successful"
 msgstr "Õnnestunud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2870
+#: lib/phoenix_kit_entities/web/entity_form.ex:2906
 #, elixir-autogen, elixir-format
 msgid "Sync Definition to File"
 msgstr "Sünkroniseeri määratlus failiga"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2894
+#: lib/phoenix_kit_entities/web/entity_form.ex:2930
 #, elixir-autogen, elixir-format
 msgid "Sync Records to File"
 msgstr "Sünkroniseeri kirjed failiga"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:876
+#: lib/phoenix_kit_entities/web/entities_settings.ex:873
 #, elixir-autogen, elixir-format
 msgid "Sync entity definitions and data to filesystem for version control and backup."
 msgstr "Sünkroonige üksuste definitsioonid ja andmed failisüsteemiga versioonihalduse ja varundamise jaoks."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1969
+#: lib/phoenix_kit_entities/web/entity_form.ex:2005
 #, elixir-autogen, elixir-format
 msgid "System Settings"
 msgstr "Süsteemi seaded"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:799
+#: lib/phoenix_kit_entities/web/entities_settings.ex:796
 #, elixir-autogen, elixir-format
 msgid "System Status"
 msgstr "Süsteemi olek"
@@ -2111,23 +2105,23 @@ msgstr "Süsteemi olek"
 msgid "Table view"
 msgstr "Tabelivaade"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1494
+#: lib/phoenix_kit_entities/web/entity_form.ex:1523
 #, elixir-autogen, elixir-format
 msgid "Tech"
 msgstr "Tehnoloogia"
 
-#: lib/phoenix_kit_entities/field_types.ex:425
+#: lib/phoenix_kit_entities/field_types.ex:431
 #, elixir-autogen, elixir-format
 msgid "Text"
 msgstr "Tekst"
 
-#: lib/phoenix_kit_entities/field_types.ex:426
+#: lib/phoenix_kit_entities/field_types.ex:432
 #, elixir-autogen, elixir-format
 msgid "Text Area"
 msgstr "Tekstiala"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2337
-#: lib/phoenix_kit_entities/web/entity_form.ex:2343
+#: lib/phoenix_kit_entities/web/entity_form.ex:2373
+#: lib/phoenix_kit_entities/web/entity_form.ex:2379
 #, elixir-autogen, elixir-format
 msgid "Thank you for your submission!"
 msgstr "Täname esitamise eest!"
@@ -2143,12 +2137,12 @@ msgstr "Vormi esitamisel tekkis viga."
 msgid "There was an error submitting the form. Please try again."
 msgstr "Vormi esitamisel tekkis viga. Palun proovige uuesti."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1746
+#: lib/phoenix_kit_entities/web/entity_form.ex:1782
 #, elixir-autogen, elixir-format
 msgid "This entity is currently being edited by another user. You are in view-only mode."
 msgstr "Seda üksust muudab hetkel teine kasutaja. Oled ainult vaatamise režiimis."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1155
+#: lib/phoenix_kit_entities/web/entity_form.ex:1184
 #, elixir-autogen, elixir-format
 msgid "This entity was deleted in another session."
 msgstr "See üksus kustutati teises seansis."
@@ -2183,7 +2177,7 @@ msgstr "See kirje ei ole prügikastis."
 msgid "This record was removed in another session."
 msgstr "See kirje eemaldati teises seansis."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2580
+#: lib/phoenix_kit_entities/web/entity_form.ex:2616
 #, elixir-autogen, elixir-format
 msgid "Time-based Validation"
 msgstr "Ajapõhine valideerimine"
@@ -2191,7 +2185,7 @@ msgstr "Ajapõhine valideerimine"
 #: lib/phoenix_kit_entities/web/data_form.ex:1633
 #: lib/phoenix_kit_entities/web/data_form.ex:1796
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1402
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1295
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1292
 #: lib/phoenix_kit_entities/web/project_data_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Title"
@@ -2202,7 +2196,7 @@ msgstr "Pealkiri"
 msgid "Too many submissions. Please try again later."
 msgstr "Liiga palju esitamiskordi. Palun proovige hiljem uuesti."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2742
+#: lib/phoenix_kit_entities/web/entity_form.ex:2778
 #, elixir-autogen, elixir-format
 msgid "Total Submissions"
 msgstr "Esitusi kokku"
@@ -2218,12 +2212,12 @@ msgstr "Prügikast"
 msgid "Trashed"
 msgstr "Prügikastis"
 
-#: lib/phoenix_kit_entities/field_types.ex:390
+#: lib/phoenix_kit_entities/field_types.ex:396
 #, elixir-autogen, elixir-format
 msgid "True/false toggle"
 msgstr "Tõene/väär lüliti"
 
-#: lib/phoenix_kit_entities/field_types.ex:428
+#: lib/phoenix_kit_entities/field_types.ex:434
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr "URL"
@@ -2255,19 +2249,19 @@ msgstr "Tundmatu fail"
 msgid "Update %{entity}"
 msgstr "Uuenda %{entity}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1769
-#: lib/phoenix_kit_entities/web/entity_form.ex:2951
+#: lib/phoenix_kit_entities/web/entity_form.ex:1805
+#: lib/phoenix_kit_entities/web/entity_form.ex:2987
 #, elixir-autogen, elixir-format
 msgid "Update Entity"
 msgstr "Uuenda üksust"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3229
+#: lib/phoenix_kit_entities/web/entity_form.ex:3265
 #, elixir-autogen, elixir-format
 msgid "Update Field"
 msgstr "Uuenda välja"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1780
-#: lib/phoenix_kit_entities/web/entity_form.ex:2962
+#: lib/phoenix_kit_entities/web/entity_form.ex:1816
+#: lib/phoenix_kit_entities/web/entity_form.ex:2998
 #, elixir-autogen, elixir-format
 msgid "Update and Return"
 msgstr "Uuenda ja naase"
@@ -2288,12 +2282,12 @@ msgstr "Uuendatud"
 msgid "Use lowercase letters, numbers, and hyphens only."
 msgstr "Kasutage ainult väiketähti, numbreid ja sidekriipse."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1807
+#: lib/phoenix_kit_entities/web/entity_form.ex:1843
 #, elixir-autogen, elixir-format
 msgid "Use the language tabs below to translate this entity's name, plural name, slug, and description. The primary language (marked with a star) is required. Other languages are optional — any empty fields will fall back to the primary language value."
 msgstr "Kasuta allolevaid keelesakke, et tõlkida selle üksuse nimi, mitmuse nimi, slug ja kirjeldus. Peamine keel (tähistatud tärniga) on kohustuslik. Teised keeled on vabatahtlikud — tühjad väljad asendatakse peamise keele väärtusega."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1491
+#: lib/phoenix_kit_entities/web/entity_form.ex:1520
 #, elixir-autogen, elixir-format
 msgid "Users"
 msgstr "Kasutajad"
@@ -2309,19 +2303,19 @@ msgstr "Valideerimisviga — sinu andmed on säilinud."
 msgid "View"
 msgstr "Vaata"
 
-#: lib/phoenix_kit_entities/field_types.ex:388
+#: lib/phoenix_kit_entities/field_types.ex:394
 #, elixir-autogen, elixir-format
 msgid "WYSIWYG HTML editor"
 msgstr "WYSIWYG HTML-redaktor"
 
-#: lib/phoenix_kit_entities/field_types.ex:387
+#: lib/phoenix_kit_entities/field_types.ex:393
 #, elixir-autogen, elixir-format
 msgid "Website URL with validation"
 msgstr "Veebisaidi URL koos valideerimisega"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2514
-#: lib/phoenix_kit_entities/web/entity_form.ex:2593
-#: lib/phoenix_kit_entities/web/entity_form.ex:2672
+#: lib/phoenix_kit_entities/web/entity_form.ex:2550
+#: lib/phoenix_kit_entities/web/entity_form.ex:2629
+#: lib/phoenix_kit_entities/web/entity_form.ex:2708
 #, elixir-autogen, elixir-format
 msgid "When triggered:"
 msgstr "Käivitumisel:"
@@ -2367,7 +2361,7 @@ msgstr "kirje ei saa olla iseenda vanem"
 msgid "auto-generated-slug"
 msgstr "auto-generated-slug"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1908
+#: lib/phoenix_kit_entities/web/entity_form.ex:1944
 #, elixir-autogen, elixir-format
 msgid "brand"
 msgstr "brand"
@@ -2439,12 +2433,12 @@ msgstr "väli '%{label}' peab olema üks järgnevatest: %{options}"
 msgid "field '%{label}' must be true or false"
 msgstr "väli '%{label}' peab olema true või false"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3048
+#: lib/phoenix_kit_entities/web/entity_form.ex:3084
 #, elixir-autogen, elixir-format
 msgid "field_name"
 msgstr "field_name"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1981
+#: lib/phoenix_kit_entities/web/entity_form.ex:2017
 #, elixir-autogen, elixir-format
 msgid "hero-document-text"
 msgstr "hero-document-text"
@@ -2459,14 +2453,14 @@ msgstr "https://example.com"
 msgid "is required"
 msgstr "on kohustuslik"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:631
-#: lib/phoenix_kit_entities/web/entities_settings.ex:639
+#: lib/phoenix_kit_entities/web/entities_settings.ex:635
+#: lib/phoenix_kit_entities/web/entities_settings.ex:643
 #, elixir-autogen, elixir-format
 msgid "must be 'unlimited' or a positive integer"
 msgstr "peab olema 'unlimited' või positiivne täisarv"
 
-#: lib/phoenix_kit_entities/web/entities_settings.ex:655
-#: lib/phoenix_kit_entities/web/entities_settings.ex:663
+#: lib/phoenix_kit_entities/web/entities_settings.ex:659
+#: lib/phoenix_kit_entities/web/entities_settings.ex:667
 #, elixir-autogen, elixir-format
 msgid "must be a positive integer"
 msgstr "peab olema positiivne täisarv"
@@ -2528,12 +2522,12 @@ msgstr "vanemkirjet ei ole olemas"
 msgid "per file"
 msgstr "faili kohta"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3054
+#: lib/phoenix_kit_entities/web/entity_form.ex:3090
 #, elixir-autogen, elixir-format
 msgid "snake_case identifier"
 msgstr "snake_case identifikaator"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1915
+#: lib/phoenix_kit_entities/web/entity_form.ex:1951
 #, elixir-autogen, elixir-format
 msgid "snake_case identifier used in the system"
 msgstr "süsteemis kasutatav snake_case identifikaator"
@@ -2581,16 +2575,16 @@ msgstr "— Puudub (tipptase) —"
 #: lib/phoenix_kit_entities/web/entities.ex:388
 #: lib/phoenix_kit_entities/web/entities.ex:508
 #: lib/phoenix_kit_entities/web/entities.ex:516
-#: lib/phoenix_kit_entities/web/entities_settings.ex:896
-#: lib/phoenix_kit_entities/web/entities_settings.ex:906
-#: lib/phoenix_kit_entities/web/entities_settings.ex:929
-#: lib/phoenix_kit_entities/web/entities_settings.ex:939
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1023
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1036
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1056
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1069
-#: lib/phoenix_kit_entities/web/entities_settings.ex:1095
-#: lib/phoenix_kit_entities/web/entity_form.ex:2188
+#: lib/phoenix_kit_entities/web/entities_settings.ex:893
+#: lib/phoenix_kit_entities/web/entities_settings.ex:903
+#: lib/phoenix_kit_entities/web/entities_settings.ex:926
+#: lib/phoenix_kit_entities/web/entities_settings.ex:936
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1020
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1033
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1053
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1066
+#: lib/phoenix_kit_entities/web/entities_settings.ex:1092
+#: lib/phoenix_kit_entities/web/entity_form.ex:2224
 #, elixir-autogen, elixir-format
 msgid "…"
 msgstr "…"
@@ -2613,32 +2607,32 @@ msgstr "%{key}: %{error}"
 msgid "Created %{date}"
 msgstr "Loodud %{date}"
 
-#: lib/phoenix_kit_entities/field_types.ex:436
+#: lib/phoenix_kit_entities/field_types.ex:442
 #, elixir-autogen, elixir-format
 msgid "File Upload"
 msgstr "Faili üleslaadimine"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2779
+#: lib/phoenix_kit_entities/web/entity_form.ex:2815
 #, elixir-autogen, elixir-format
 msgid "Honeypot: %{count}"
 msgstr "Honeypot: %{count}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2803
+#: lib/phoenix_kit_entities/web/entity_form.ex:2839
 #, elixir-autogen, elixir-format
 msgid "Last submission: %{datetime}"
 msgstr "Viimane esitus: %{datetime}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2791
+#: lib/phoenix_kit_entities/web/entity_form.ex:2827
 #, elixir-autogen, elixir-format
 msgid "Rate Limited: %{count}"
 msgstr "Kiiruspiirangus: %{count}"
 
-#: lib/phoenix_kit_entities/field_types.ex:439
+#: lib/phoenix_kit_entities/field_types.ex:445
 #, elixir-autogen, elixir-format
 msgid "Section Heading"
 msgstr "Jaotise pealkiri"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2785
+#: lib/phoenix_kit_entities/web/entity_form.ex:2821
 #, elixir-autogen, elixir-format
 msgid "Too Fast: %{count}"
 msgstr "Liiga kiire: %{count}"
@@ -2658,7 +2652,7 @@ msgstr "%{email} poolt"
 msgid "entity_uuid must be present"
 msgstr "entity_uuid peab olema määratud"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:3211
+#: lib/phoenix_kit_entities/web/entity_form.ex:3247
 #, elixir-autogen, elixir-format
 msgid "Allow a custom \"Other\" option"
 msgstr "Luba kohandatud valik \"Muu\""
@@ -2705,22 +2699,22 @@ msgstr "Toetamata väljatüüp: %{type}"
 msgid "created_by_uuid must be present"
 msgstr "created_by_uuid peab olema määratud"
 
-#: lib/phoenix_kit_entities/field_types.ex:437
+#: lib/phoenix_kit_entities/field_types.ex:443
 #, elixir-autogen
 msgid "Image"
 msgstr "Pilt"
 
-#: lib/phoenix_kit_entities/field_types.ex:438
+#: lib/phoenix_kit_entities/field_types.ex:444
 #, elixir-autogen
 msgid "Video"
 msgstr "Video"
 
-#: lib/phoenix_kit_entities/field_types.ex:400
+#: lib/phoenix_kit_entities/field_types.ex:406
 #, elixir-autogen
 msgid "One image from the media library (stores a file reference)"
 msgstr "Üks pilt meediateegist (salvestab failiviite)"
 
-#: lib/phoenix_kit_entities/field_types.ex:403
+#: lib/phoenix_kit_entities/field_types.ex:409
 #, elixir-autogen
 msgid "One video from the media library (stores a file reference)"
 msgstr "Üks video meediateegist (salvestab failiviite)"
@@ -2739,7 +2733,7 @@ msgstr "Vali…"
 msgid "Managed by %{owner}"
 msgstr "Haldab moodul %{owner}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1733
+#: lib/phoenix_kit_entities/web/entity_form.ex:1769
 #, elixir-autogen, elixir-format
 msgid "Managed by the %{owner} module. Its slug, status and %{owner}-locked settings are protected — everything else is edited right here."
 msgstr "Haldab moodul %{owner}. Slug, staatus ja mooduli lukustatud seaded on kaitstud — kõike muud muudetakse siinsamas."
@@ -2764,17 +2758,17 @@ msgstr "Vali pilt"
 msgid "Select Video"
 msgstr "Vali video"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1030
+#: lib/phoenix_kit_entities/web/entity_form.ex:1059
 #, elixir-autogen, elixir-format
 msgid "The blueprint's slug, status and module-locked settings are protected — revert those changes to save."
 msgstr "Slug, staatus ja mooduli lukustatud seaded on kaitstud — tühista need muudatused salvestamiseks."
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:2049
+#: lib/phoenix_kit_entities/web/entity_form.ex:2085
 #, elixir-autogen, elixir-format
 msgid "Locked — the owning module controls the lifecycle"
 msgstr "Lukustatud — elutsüklit haldab omanikmoodul"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1914
+#: lib/phoenix_kit_entities/web/entity_form.ex:1950
 #, elixir-autogen, elixir-format
 msgid "Locked — the owning module keys on this slug"
 msgstr "Lukustatud — omanikmoodul tugineb sellele slugile"
@@ -2783,3 +2777,8 @@ msgstr "Lukustatud — omanikmoodul tugineb sellele slugile"
 #, elixir-autogen, elixir-format
 msgid "That record belongs to %{entity}."
 msgstr "See kirje kuulub kirjetüübile %{entity}."
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex:36
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr "Seaded"

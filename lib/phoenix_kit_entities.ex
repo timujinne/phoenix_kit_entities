@@ -1146,6 +1146,7 @@ defmodule PhoenixKitEntities do
   def module_key, do: "entities"
 
   @impl PhoenixKit.Module
+  @spec migration_module() :: module()
   def migration_module, do: PhoenixKitEntities.Migrations
 
   @impl PhoenixKit.Module

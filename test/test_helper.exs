@@ -16,7 +16,8 @@
 # - PhoenixKitEntities.ActivityLogAssertions
 #   (test/support/activity_log_assertions.ex)
 # - Schema setup runs core's versioned migrations directly via
-#   `PhoenixKit.Migration` — no module-owned test DDL.
+#   `PhoenixKit.Migration`, then this module's own V1 chain via
+#   `PhoenixKitEntities.Test.Migration` (test/support/test_migration.ex).
 
 require Logger
 
@@ -32,36 +33,36 @@ alias PhoenixKitEntities.Test.SchemaOwnerGuard
 db_config = Application.get_env(:phoenix_kit_entities, TestRepo, [])
 db_name = db_config[:database] || "phoenix_kit_entities_test"
 
+# The preflight ships in core, and this module's core floor (`~> 2.0`)
+# predates it — so it is used when the running core has it, and otherwise
+# this falls through to exactly the previous behaviour.
 db_check =
-  try do
-    case System.cmd("psql", ["-lqt"], stderr_to_stdout: true) do
-      {output, 0} ->
-        exists =
-          output
-          |> String.split("\n")
-          |> Enum.any?(fn line ->
-            line |> String.split("|") |> List.first("") |> String.trim() == db_name
-          end)
+  if Code.ensure_loaded?(PhoenixKit.TestSupport.PostgresPreflight) do
+    # One classified connection attempt, with the repo's OWN credentials and
+    # transport, before anything starts the pool.
+    #
+    # This replaces a `psql -lqt` listing. That check asked the wrong question:
+    # it ran as the shell's user over a unix socket, so it reported "the
+    # database is there" and said nothing about whether the CONFIGURED role
+    # could reach it over TCP. When it could not, the answer arrived minutes
+    # later as a pool checkout timeout that reads like a flaky test.
+    case PhoenixKit.TestSupport.PostgresPreflight.check(db_config) do
+      :ok ->
+        :exists
 
-        if exists, do: :exists, else: :not_found
-
-      _ ->
-        :try_connect
+      {:error, _reason, message} ->
+        IO.puts(:stderr, "\n" <> message)
+        :not_found
     end
-  rescue
-    # `System.cmd/3` raises rather than returning a tuple when the binary is
-    # absent from PATH, so the `_ -> :try_connect` clause above never fires on
-    # a machine with no psql client — the whole suite died with an ErlangError
-    # before a single test ran. Fall through to the connect attempt, which is
-    # what that clause already meant for "couldn't determine via psql".
-    ErlangError -> :try_connect
+  else
+    :try_connect
   end
 
 repo_available =
   if db_check == :not_found do
     IO.puts("""
-    \n  Test database "#{db_name}" not found — integration tests excluded.
-       Run: createdb #{db_name}
+    \n  Cannot reach test database "#{db_name}" — integration tests excluded.
+       The reason is printed above.
     """)
 
     false
@@ -77,8 +78,9 @@ repo_available =
 
       # Build the schema directly from core's versioned migrations — same
       # call the host app makes in production. The entities tables come from
-      # core (V17 creates them; V40/V58/V67/V74/V81 evolve them). No
-      # module-owned DDL anywhere.
+      # core (V17 creates them; V40/V58/V67/V74/V81 evolve them), and this
+      # module's own V1 chain then ADOPTS them (see the Ecto.Migrator.up/4
+      # call below).
       #
       # `ensure_current/2` (core 1.7.105+ / phoenix_kit#515) re-applies
       # any newly-shipped Vxxx migrations on every boot by passing a
@@ -90,6 +92,20 @@ repo_available =
       # story (clock-skew window, schema_migrations row accumulation,
       # prefix forwarding).
       PhoenixKit.Migration.ensure_current(TestRepo, log: false)
+
+      # Then this module's own chain, through the same coordinator a real host
+      # runs via `mix phoenix_kit.update` — so the suite can never pass against
+      # a schema that differs from what installs get, and a statement that
+      # merely looks right but does not parse fails here instead of on a host.
+      # The wall-clock version makes the wrapper re-run on every boot rather
+      # than being short-circuited by a stale `schema_migrations` row; the
+      # coordinator is idempotent, so a re-run is a no-op.
+      Ecto.Migrator.up(
+        TestRepo,
+        :os.system_time(:microsecond),
+        PhoenixKitEntities.Test.Migration,
+        log: false
+      )
 
       # Migrations for this run succeeded — stamp ownership so a future run
       # against this same DB (still opted in via PGDATABASE) can tell it's
@@ -111,8 +127,7 @@ repo_available =
 
       e ->
         IO.puts("""
-        \n  Could not connect to test database — integration tests excluded.
-           Run: createdb #{db_name}
+        \n  Could not connect to test database — integration tests excluded.           The reason is printed above.
            Error: #{Exception.message(e)}
         """)
 
@@ -120,8 +135,7 @@ repo_available =
     catch
       :exit, reason ->
         IO.puts("""
-        \n  Could not connect to test database — integration tests excluded.
-           Run: createdb #{db_name}
+        \n  Could not connect to test database — integration tests excluded.           The reason is printed above.
            Error: #{inspect(reason)}
         """)
 

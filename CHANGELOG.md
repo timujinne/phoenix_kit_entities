@@ -1,3 +1,67 @@
+## 0.4.12 - 2026-09-07
+
+### Fixed
+
+- The Entities Settings page's breadcrumb linked its second segment to
+  "Modules" → `/admin/modules` instead of "Settings" → `/admin/settings`,
+  even though the page lives under the Settings sidebar group
+  (`settings_tabs/0` registers it at `/admin/settings/entities`) — the
+  wrong link, not just a mislabeled one. Page title also shortened from
+  "Entities Settings" to "Entities" to match the sidebar label.
+
+## 0.4.11 - 2026-09-07
+
+### Fixed
+
+- **Removed duplicate page headings** on the Entities Settings page and the
+  entity edit form — each repeated the page title already shown in the top
+  breadcrumb bar.
+
+## 0.4.10 - 2026-09-05
+
+### Added
+
+- **A module-owned migration chain** (`PhoenixKitEntities.Migrations`),
+  registered through `migration_module/0` and discovered by
+  `mix phoenix_kit.status` / `mix phoenix_kit.update`. V1 is purely
+  *adoptive*: `phoenix_kit_entities` and `phoenix_kit_entity_data` were
+  created by core and still ship in its squashed baseline, so every
+  statement is `IF NOT EXISTS`-guarded and name-identical to core's
+  objects, and the only new object is the `pkn_schema:1` marker stamped
+  as a `COMMENT ON TABLE`. Nothing about the schema changes; what changes
+  is that this package now owns the two tables' future shape instead of
+  waiting on a core release. `down/1` only unstamps the marker — it never
+  drops a table or a row (#42).
+
+### Fixed
+
+- **A map-shaped `down/1` rolled back to the wrong version.** The target
+  was read only from a keyword list, while the prefix was read from either
+  a keyword list or a map (the shape core's own migrator threads through
+  its chain), so `down(%{prefix: "public", version: 1})` validated its
+  prefix, discarded its version and unstamped to `0` (#42).
+- **`migrated_version_runtime/1` survives a dead connection pool.** It
+  guarded against exceptions only, but an unreachable database *exits*
+  rather than raising on a dead or unstarted pool, which reported this
+  module as errored to `mix phoenix_kit.status` where every sibling module
+  reports "not installed". An unusable prefix still raises, deliberately:
+  "not installed" and "I cannot query that prefix" must not look alike to
+  the update task (#42).
+
+### Changed
+
+- **The test suite now runs the migration chain it ships.** Schema setup
+  applies core's versioned migrations and then this module's own chain
+  through `PhoenixKitEntities.Test.Migration` — the checked-in equivalent
+  of the migration `mix phoenix_kit.update` generates in a host app — so
+  the suite exercises exactly the DDL an install gets rather than asserting
+  on statement strings that no database has ever parsed (#42).
+- **The adopted object inventory is pinned to core's own manifest.** A new
+  test derives what V1 must contain from
+  `PhoenixKit.Migrations.ExpectedSchema` (43 required objects across the
+  two tables) instead of a hand-copied list, so an object core adds and
+  this chain misses fails the suite (#42).
+
 ## 0.4.9 - 2026-08-30
 
 ### Added

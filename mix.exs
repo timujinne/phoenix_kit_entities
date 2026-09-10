@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.4.9"
+  @version "0.4.12"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do

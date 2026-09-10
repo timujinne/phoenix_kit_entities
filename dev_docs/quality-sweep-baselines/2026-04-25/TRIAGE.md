@@ -2,7 +2,7 @@
 
 Three parallel `Explore` agents ran against `lib/` and `test/` per the
 playbook. Findings classified by quality-sweep scope (REFACTOR vs.
-NEW FEATURE — see [feedback_quality_sweep_scope.md](../../../../../.claude/projects/-Users-maxdon-Desktop-Elixir/memory/feedback_quality_sweep_scope.md)).
+NEW FEATURE — see [feedback_quality_sweep_scope.md](../../../../..the agent memory note `feedback_quality_sweep_scope.md`).
 
 ## In scope (REFACTOR — fix in this sweep)
 
