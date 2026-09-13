@@ -41,7 +41,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/entities/new")
 
-      assert html =~ "Create New Entity"
+      assert html =~ "<title>New Entity</title>"
     end
 
     test "submit button has phx-disable-with (delta-pin C5)", %{conn: conn} = ctx do
@@ -57,7 +57,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
-      assert html =~ "Edit Entity"
+      assert html =~ "<title>Edit Entity</title>"
       assert html =~ ~s|value="EF Test"|
       assert html =~ ~s|value="ef_test"|
     end
@@ -120,7 +120,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       # No redirect — the view stays on the edit page (handle_save_success
       # falls through to the "stay on edit" branch). Render-after-submit
       # would crash if a push_navigate had fired.
-      assert render(view) =~ "Edit Entity"
+      assert page_title(view) =~ "Edit Entity"
       # And the save actually persisted.
       assert Entities.get_entity!(ctx.entity.uuid).display_name == "Stay Put"
     end
@@ -177,7 +177,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       render_hook(view, "switch_language", %{"lang" => "totally-fake"})
-      assert render(view) =~ "Edit Entity"
+      assert page_title(view) =~ "Edit Entity"
     end
   end
 
@@ -188,7 +188,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       send(view.pid, {:unrelated_message, :payload})
-      assert render(view) =~ "Edit Entity"
+      assert page_title(view) =~ "Edit Entity"
     end
 
     test "logs at :debug level so unexpected messages stay visible in dev",
@@ -222,7 +222,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       render_hook(view, "clear_icon", %{})
       render_hook(view, "close_icon_picker", %{})
       render_hook(view, "stop_propagation", %{})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
   end
 
@@ -254,7 +254,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
 
       render_hook(view, "generate_entity_slug", %{})
       render_hook(view, "generate_field_key", %{})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
 
     test "select-type field add_option / update_option / remove_option don't crash",
@@ -271,7 +271,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       render_hook(view, "add_option", %{})
       render_hook(view, "update_option", %{"index" => "0", "value" => "Apple"})
       render_hook(view, "remove_option", %{"index" => "0"})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
 
     test "allow_other toggle persists on a radio field and pre-fills on re-edit",
@@ -402,7 +402,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       })
 
       render_hook(view, "toggle_public_form_field", %{"field" => "name"})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
 
     test "the field selector excludes heading fields — they're display-only, never public form data",
@@ -445,7 +445,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       })
 
       render_hook(view, "reset_form_stats", %{})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
   end
 
@@ -458,7 +458,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       render_hook(view, "toggle_backup_definitions", %{})
       render_hook(view, "toggle_backup_data", %{})
       render_hook(view, "export_entity_now", %{})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
   end
 
@@ -482,7 +482,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       render_hook(view, "reset", %{})
-      assert render(view) =~ "Edit"
+      assert render(view) =~ "Update Entity"
     end
   end
 end

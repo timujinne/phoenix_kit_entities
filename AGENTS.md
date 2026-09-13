@@ -418,8 +418,13 @@ Postgres function comes from core.
 Test DB `phoenix_kit_entities_test`; `createdb` it once. Unit tests always run;
 DB-backed tests are tagged `:integration` (auto-applied by `DataCase` and
 `LiveCase`) and auto-exclude when the database is unreachable —
-`test_helper.exs` probes with `psql -lqt` and falls back to a connect attempt
-when `psql` is missing.
+`test_helper.exs` runs one bounded, classified connection attempt through
+core's `PhoenixKit.TestSupport.PostgresPreflight` when the running core ships
+it (the `~> 2.0` floor predates it), and otherwise falls back to starting the
+repo and catching the failure. A second probe against the `postgres`
+maintenance database gates the `:maintenance_db` tag: the `SchemaOwnerGuard`
+tests create and drop scratch databases, so a role that can reach the test
+database but not the maintenance one skips them with the reason printed.
 
 `database:` / `pool_size:` in `config/test.exs` read `PGDATABASE` / `PGPOOL`,
 falling back to the name above and `System.schedulers_online() * 2` — the same

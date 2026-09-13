@@ -45,6 +45,8 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
       socket
       |> assign(:current_locale, locale)
       |> assign(:page_title, gettext("Data Navigator"))
+      |> assign(:page_section, gettext("Entities"))
+      |> assign(:page_section_path, Routes.path("/admin/entities"))
       |> assign(:project_title, project_title)
       |> assign(:entities, [])
       |> assign(:total_records, 0)
@@ -77,7 +79,9 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
 
     # Set page title based on entity
     page_title =
-      if entity, do: entity.display_name, else: gettext("Data Navigator")
+      if entity,
+        do: entity.display_name_plural || entity.display_name,
+        else: gettext("Data Navigator")
 
     # Extract filter params with defaults
     status = params["status"] || "all"
@@ -703,7 +707,7 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
         socket =
           socket
           |> assign(:selected_entity, entity)
-          |> assign(:page_title, entity.display_name)
+          |> assign(:page_title, entity.display_name_plural || entity.display_name)
           |> refresh_entities_and_data()
 
         {:noreply, socket}
@@ -996,10 +1000,9 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
              reader guess, and this page is going in front of clients. The
              control's shape and size are core's job again as of the
              2026-08-28 header change. --%>
-        <.admin_page_header
-          back={PhoenixKit.Utils.Routes.path("/admin/entities")}
-          back_label={gettext("Entities")}
-        >
+        <%!-- No back chip: the breadcrumb bar's "Entities" section crumb is
+        the way back, as on every other page of this module. --%>
+        <.admin_page_header>
           <:actions>
           <%!-- View Mode Toggle --%>
           <div class="join">

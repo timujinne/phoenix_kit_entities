@@ -174,6 +174,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     socket =
       socket
       |> assign(:page_title, page_title)
+      |> assign(:page_subtitle, gettext("Define your custom content type with dynamic fields"))
+      |> assign(:page_section, gettext("Entities"))
+      |> assign(:page_section_path, Routes.path("/admin/entities"))
       |> assign(:project_title, project_title)
       |> assign(:entity, entity)
       |> assign(:changeset, changeset)
@@ -1742,23 +1745,6 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   def render(assigns) do
     ~H"""
       <div class="container flex flex-col mx-auto px-4 py-6">
-        <%!-- Header Section --%>
-        <.admin_page_header back={PhoenixKit.Utils.Routes.path("/admin/entities")}>
-          <%!-- Edit mode's title duplicates the page_title assign already
-          shown in the breadcrumb bar ("Edit Entity") — only the create
-          mode's heading ("Create New Entity" vs. its distinct "New Entity"
-          page_title) still needs to render here. --%>
-          <h1
-            :if={is_nil(@entity.uuid)}
-            class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content"
-          >
-            {gettext("Create New Entity")}
-          </h1>
-          <p class="text-sm text-base-content/60 mt-0.5">
-            {gettext("Define your custom content type with dynamic fields")}
-          </p>
-        </.admin_page_header>
-
         <%!-- Managed Banner — the blueprint belongs to another module.
         Since 2026-08-27 these ARE edited here (the owning modules dropped
         their own editors); only the structural surface stays locked. --%>

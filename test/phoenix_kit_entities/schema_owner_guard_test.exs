@@ -14,6 +14,9 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardTest do
   # can't go through either case template, but it needs the same exclusion
   # when Postgres is unavailable (see `test_helper.exs`'s `exclude` list).
   @moduletag :integration
+  # Creates and drops its own scratch databases via the `postgres` maintenance
+  # database; excluded by `test_helper.exs` when that connection is refused.
+  @moduletag :maintenance_db
 
   alias PhoenixKitEntities.Test.SchemaOwnerGuard
 

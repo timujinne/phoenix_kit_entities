@@ -483,11 +483,6 @@ msgstr ""
 msgid "Create New %{entity}"
 msgstr ""
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1755
-#, elixir-autogen, elixir-format
-msgid "Create New Entity"
-msgstr ""
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1301
 #: lib/phoenix_kit_entities/web/entities.ex:262
 #, elixir-autogen, elixir-format
@@ -749,12 +744,6 @@ msgstr ""
 msgid "Edit %{entity}"
 msgstr ""
 
-#: lib/phoenix_kit_entities/web/data_form.ex:74
-#: lib/phoenix_kit_entities/web/data_form.ex:92
-#, elixir-autogen, elixir-format
-msgid "Edit Data"
-msgstr ""
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1033
 #: lib/phoenix_kit_entities/web/entity_form.ex:59
 #, elixir-autogen, elixir-format
@@ -925,11 +914,6 @@ msgstr ""
 #: lib/phoenix_kit_entities/web/entity_form.ex:1825
 #, elixir-autogen, elixir-format
 msgid "Entity Information"
-msgstr ""
-
-#: lib/phoenix_kit_entities/web/entities.ex:201
-#, elixir-autogen, elixir-format
-msgid "Entity Manager"
 msgstr ""
 
 #: lib/phoenix_kit_entities/web/entity_form.ex:1922
@@ -1456,6 +1440,11 @@ msgstr ""
 msgid "Missing required keys: %{keys}"
 msgstr ""
 
+#: lib/phoenix_kit_entities/web/entities.ex:36
+#, elixir-autogen, elixir-format
+msgid "Modules"
+msgstr ""
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2192
 #, elixir-autogen, elixir-format
 msgid "Move down"
@@ -1503,12 +1492,6 @@ msgstr ""
 #: lib/phoenix_kit_entities/web/entities_settings.ex:1137
 #, elixir-autogen, elixir-format
 msgid "Never"
-msgstr ""
-
-#: lib/phoenix_kit_entities/web/data_form.ex:107
-#: lib/phoenix_kit_entities/web/data_form.ex:119
-#, elixir-autogen, elixir-format
-msgid "New Data"
 msgstr ""
 
 #: lib/phoenix_kit_entities/web/entities.ex:241

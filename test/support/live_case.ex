@@ -16,7 +16,7 @@ defmodule PhoenixKitEntities.LiveCase do
         test "renders the entity list", %{conn: conn} do
           conn = put_test_scope(conn, fake_scope())
           {:ok, _view, html} = live(conn, "/en/admin/entities")
-          assert html =~ "Entity Manager"
+          assert html =~ "All Entities"
         end
       end
 

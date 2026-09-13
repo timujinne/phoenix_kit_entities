@@ -55,12 +55,15 @@ defmodule PhoenixKitEntities.Web.DataNavigatorLiveTest do
       assert html =~ "Record 2"
       assert html =~ "Record 3"
 
-      # The page title and its "Browse and manage your …" line are gone
-      # on purpose (Max, 2026-08-28): the admin header above already
-      # names the entity, so the page opens on its content.
-      refute html =~ "DN Test"
-      refute html =~ "Browse and manage"
-      assert has_element?(view, ~s|a[href$="/admin/entities"]|)
+      # The in-body page title and its "Browse and manage your …" line are
+      # gone on purpose (Max, 2026-08-28): the admin layout's breadcrumb bar
+      # names the entity (via @page_title, the plural form the sidebar uses)
+      # and links back to "Entities" (via @page_section), so the page opens
+      # on its content and carries no back chip of its own.
+      body = render(view)
+      refute body =~ "DN Test"
+      refute body =~ "Browse and manage"
+      assert page_title(view) == "DN Tests"
     end
   end
 

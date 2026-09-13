@@ -18,7 +18,10 @@ defmodule PhoenixKitEntities.Test.Layouts do
       <head>
         <meta charset="utf-8" />
         <meta name="csrf-token" content={Phoenix.Controller.get_csrf_token()} />
-        <title>Test</title>
+        <%!-- The real admin layout shows @page_title in its breadcrumb bar,
+        which this shell does not render; the <title> is the one place the
+        assign lands, so `page_title(view)` is how tests assert page identity. --%>
+        <title>{assigns[:page_title] || "Test"}</title>
       </head>
       <body>
         {@inner_content}

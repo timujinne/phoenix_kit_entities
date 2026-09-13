@@ -65,11 +65,20 @@ db_check =
     :try_connect
   end
 
+# What to tell a reader when the repo cannot be started. The preflight (when
+# core ships it) has already printed a classified reason; the fallback path
+# has not, so it keeps the one hint that covers the common case.
+db_setup_hint =
+  case db_check do
+    :try_connect -> "Run: createdb #{db_name}"
+    _ -> "The reason is printed above."
+  end
+
 repo_available =
   if db_check == :not_found do
     IO.puts("""
     \n  Cannot reach test database "#{db_name}" — integration tests excluded.
-       The reason is printed above.
+       #{db_setup_hint}
     """)
 
     false
@@ -134,7 +143,8 @@ repo_available =
 
       e ->
         IO.puts("""
-        \n  Could not connect to test database — integration tests excluded.           The reason is printed above.
+        \n  Could not set up test database "#{db_name}" — integration tests excluded.
+           #{db_setup_hint}
            Error: #{Exception.message(e)}
         """)
 
@@ -142,7 +152,8 @@ repo_available =
     catch
       :exit, reason ->
         IO.puts("""
-        \n  Could not connect to test database — integration tests excluded.           The reason is printed above.
+        \n  Could not set up test database "#{db_name}" — integration tests excluded.
+           #{db_setup_hint}
            Error: #{inspect(reason)}
         """)
 
@@ -223,9 +234,68 @@ end
 # it to V169 and flip the default run's expectations.
 #
 # Delete each from the tests and this line once the pin catches up.
+# The SchemaOwnerGuard tests create and drop scratch databases of their own
+# through the `postgres` maintenance database, with the PG* env defaults
+# every package in this ecosystem uses. A role that can reach the test
+# database but not the maintenance one (a shared instance with a scoped
+# account) must not turn those into pool-checkout timeouts: one bounded
+# connect decides, and a failure excludes the `:maintenance_db` tag with the
+# reason printed. Same pattern as the repo preflight above — a connection
+# probe, not a privilege audit.
+maintenance_db_check =
+  if repo_available do
+    admin_opts = [
+      hostname: System.get_env("PGHOST", "localhost"),
+      port: String.to_integer(System.get_env("PGPORT", "5432")),
+      username: System.get_env("PGUSER", "postgres"),
+      password: System.get_env("PGPASSWORD", "postgres"),
+      database: "postgres",
+      connect_timeout: 2_000,
+      types: Postgrex.DefaultTypes
+    ]
+
+    try do
+      case Postgrex.Protocol.connect(admin_opts) do
+        {:ok, state} ->
+          Postgrex.Protocol.disconnect(
+            DBConnection.ConnectionError.exception("preflight complete"),
+            state
+          )
+
+          :ok
+
+        {:error, error} ->
+          {:error, Exception.message(error)}
+      end
+    rescue
+      # A probe malfunction must not hide tests; only a refused connection does.
+      _ -> :ok
+    catch
+      :exit, _ -> :ok
+    end
+  else
+    :ok
+  end
+
+maintenance_db_available =
+  case maintenance_db_check do
+    :ok ->
+      true
+
+    {:error, message} ->
+      IO.puts("""
+      \n  Cannot reach the "postgres" maintenance database as #{System.get_env("PGUSER", "postgres")} —
+         scratch-database tests (:maintenance_db) excluded.
+         Error: #{message}
+      """)
+
+      false
+  end
+
 exclude =
   [
     if(!repo_available, do: :integration),
+    if(!maintenance_db_available, do: :maintenance_db),
     if(!i18n_api_available, do: :requires_phoenix_kit_i18n_api),
     :needs_unreleased_core
   ]

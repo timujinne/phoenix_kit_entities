@@ -70,8 +70,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
     if owns_record?(entity, data_record) do
       changeset = EntityData.change(data_record)
 
-      {:noreply,
-       hydrate_data_form(socket, entity, data_record, changeset, gettext("Edit Data"), locale)}
+      {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
     else
       {:noreply, redirect_to_owning_entity(socket, data_record)}
     end
@@ -88,8 +87,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
     if owns_record?(entity, data_record) do
       changeset = EntityData.change(data_record)
 
-      {:noreply,
-       hydrate_data_form(socket, entity, data_record, changeset, gettext("Edit Data"), locale)}
+      {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
     else
       {:noreply, redirect_to_owning_entity(socket, data_record)}
     end
@@ -103,8 +101,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
     data_record = %EntityData{entity_uuid: entity.uuid}
     changeset = EntityData.change(data_record)
 
-    {:noreply,
-     hydrate_data_form(socket, entity, data_record, changeset, gettext("New Data"), locale)}
+    {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
   end
 
   def handle_params(%{"entity_id" => entity_uuid} = params, _uri, socket) do
@@ -115,8 +112,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
     data_record = %EntityData{entity_uuid: entity.uuid}
     changeset = EntityData.change(data_record)
 
-    {:noreply,
-     hydrate_data_form(socket, entity, data_record, changeset, gettext("New Data"), locale)}
+    {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
   end
 
   # The record is loaded by uuid, the entity comes from the URL, and until now
@@ -150,9 +146,27 @@ defmodule PhoenixKitEntities.Web.DataForm do
     )
   end
 
-  defp hydrate_data_form(socket, entity, data_record, changeset, page_title, locale) do
+  defp hydrate_data_form(socket, entity, data_record, changeset, locale) do
     project_title = Settings.get_project_title()
     current_user = socket.assigns[:phoenix_kit_current_user]
+
+    # The breadcrumb bar carries the page identity: "Entities / <Plural> /
+    # Edit <Entity> · subtitle". Nothing in the body repeats it.
+    {page_title, page_subtitle} =
+      if data_record.uuid do
+        {gettext("Edit %{entity}", entity: entity.display_name),
+         gettext("Update data for the %{entity} entity", entity: entity.display_name)}
+      else
+        {gettext("Create New %{entity}", entity: entity.display_name),
+         gettext("Add data for the %{entity} entity", entity: entity.display_name)}
+      end
+
+    page_crumbs = [
+      %{
+        label: entity.display_name_plural || entity.display_name,
+        path: Routes.path("/admin/entities/#{entity.name}/data")
+      }
+    ]
 
     # For new records, set default status to "published" to avoid validation errors
     changeset =
@@ -189,6 +203,10 @@ defmodule PhoenixKitEntities.Web.DataForm do
       socket
       |> assign(:current_locale, locale)
       |> assign(:page_title, page_title)
+      |> assign(:page_subtitle, page_subtitle)
+      |> assign(:page_section, gettext("Entities"))
+      |> assign(:page_section_path, Routes.path("/admin/entities"))
+      |> assign(:page_crumbs, page_crumbs)
       |> assign(:project_title, project_title)
       |> assign(:entity, entity)
       |> assign(:data_record, data_record)
@@ -1512,25 +1530,6 @@ defmodule PhoenixKitEntities.Web.DataForm do
     ~H"""
       <div class="container flex flex-col mx-auto px-4 py-6">
         <%!-- Header Section --%>
-        <.admin_page_header back={
-          PhoenixKit.Utils.Routes.path("/admin/entities/#{@entity.name}/data")
-        }>
-          <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
-            <%= if @data_record.uuid do %>
-              {gettext("Edit %{entity}", entity: @entity.display_name)}
-            <% else %>
-              {gettext("Create New %{entity}", entity: @entity.display_name)}
-            <% end %>
-          </h1>
-          <p class="text-sm text-base-content/60 mt-0.5">
-            <%= if @data_record.uuid do %>
-              {gettext("Update data for the %{entity} entity", entity: @entity.display_name)}
-            <% else %>
-              {gettext("Add data for the %{entity} entity", entity: @entity.display_name)}
-            <% end %>
-          </p>
-        </.admin_page_header>
-
         <%!-- Readonly Banner --%>
         <%= if @readonly? do %>
           <div class="alert alert-info mb-6">

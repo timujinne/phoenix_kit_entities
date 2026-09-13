@@ -489,11 +489,6 @@ msgstr "Создать сущность"
 msgid "Create New %{entity}"
 msgstr "Создать новую запись %{entity}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1755
-#, elixir-autogen, elixir-format
-msgid "Create New Entity"
-msgstr "Создать новую сущность"
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1301
 #: lib/phoenix_kit_entities/web/entities.ex:262
 #, elixir-autogen, elixir-format
@@ -755,12 +750,6 @@ msgstr "Редактировать"
 msgid "Edit %{entity}"
 msgstr "Редактировать %{entity}"
 
-#: lib/phoenix_kit_entities/web/data_form.ex:74
-#: lib/phoenix_kit_entities/web/data_form.ex:92
-#, elixir-autogen, elixir-format
-msgid "Edit Data"
-msgstr "Редактировать данные"
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1033
 #: lib/phoenix_kit_entities/web/entity_form.ex:59
 #, elixir-autogen, elixir-format
@@ -932,11 +921,6 @@ msgstr "Сущность «%{name}» была %{status} в другой сесс
 #, elixir-autogen, elixir-format
 msgid "Entity Information"
 msgstr "Информация о сущности"
-
-#: lib/phoenix_kit_entities/web/entities.ex:201
-#, elixir-autogen, elixir-format
-msgid "Entity Manager"
-msgstr "Менеджер сущностей"
 
 #: lib/phoenix_kit_entities/web/entity_form.ex:1922
 #, elixir-autogen, elixir-format
@@ -1462,6 +1446,11 @@ msgstr "Зеркалирование и экспорт"
 msgid "Missing required keys: %{keys}"
 msgstr "Отсутствуют обязательные ключи: %{keys}"
 
+#: lib/phoenix_kit_entities/web/entities.ex:36
+#, elixir-autogen, elixir-format
+msgid "Modules"
+msgstr "Модули"
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2192
 #, elixir-autogen, elixir-format
 msgid "Move down"
@@ -1510,12 +1499,6 @@ msgstr "Навигация"
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "Никогда"
-
-#: lib/phoenix_kit_entities/web/data_form.ex:107
-#: lib/phoenix_kit_entities/web/data_form.ex:119
-#, elixir-autogen, elixir-format
-msgid "New Data"
-msgstr "Новые данные"
 
 #: lib/phoenix_kit_entities/web/entities.ex:241
 #: lib/phoenix_kit_entities/web/entity_form.ex:72

@@ -40,7 +40,7 @@ defmodule PhoenixKitEntities.Web.EntitiesLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/entities")
 
-      assert html =~ "Entity Manager"
+      assert html =~ "All Entities"
       assert html =~ "Live Pub"
       assert html =~ "Live Arch"
     end

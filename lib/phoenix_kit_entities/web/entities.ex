@@ -15,6 +15,7 @@ defmodule PhoenixKitEntities.Web.Entities do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitEntities, as: Entities
 
   @impl true
@@ -31,6 +32,12 @@ defmodule PhoenixKitEntities.Web.Entities do
       socket
       |> assign(:current_locale, locale)
       |> assign(:page_title, gettext("Entities"))
+      |> assign(
+        :page_subtitle,
+        gettext("Create and manage custom content types with dynamic fields")
+      )
+      |> assign(:page_section, gettext("Modules"))
+      |> assign(:page_section_path, Routes.path("/admin/modules"))
       |> assign(:project_title, project_title)
       |> assign(:view_mode, "table")
       |> assign(:entities, [])
@@ -195,13 +202,6 @@ defmodule PhoenixKitEntities.Web.Entities do
   def render(assigns) do
     ~H"""
       <div class="container flex flex-col mx-auto px-4 py-6">
-        <%!-- Header Section --%>
-        <.admin_page_header
-          back={PhoenixKit.Utils.Routes.path("/admin/modules")}
-          title={gettext("Entity Manager")}
-          subtitle={gettext("Create and manage custom content types with dynamic fields")}
-        />
-
         <%!-- Action Bar --%>
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <div>
@@ -235,7 +235,7 @@ defmodule PhoenixKitEntities.Web.Entities do
             </div>
 
             <.link
-              navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
+              navigate={Routes.path("/admin/entities/new")}
               class="btn btn-primary"
             >
               <.icon name="hero-plus" class="w-4 h-4 mr-2" /> {gettext("New Entity")}
@@ -256,7 +256,7 @@ defmodule PhoenixKitEntities.Web.Entities do
             }
           >
             <.link
-              navigate={PhoenixKit.Utils.Routes.path("/admin/entities/new")}
+              navigate={Routes.path("/admin/entities/new")}
               class="btn btn-primary btn-lg"
             >
               <.icon name="hero-plus" class="w-5 h-5 mr-2" /> {gettext("Create Your First Entity")}
@@ -300,7 +300,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                       <.table_default_cell>
                         <.link
                           navigate={
-                            PhoenixKit.Utils.Routes.locale_aware_path(
+                            Routes.locale_aware_path(
                               assigns,
                               "/admin/entities/#{entity.name}/data"
                             )
@@ -357,7 +357,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                         <.table_row_menu mode="auto" id={"entity-menu-#{entity.uuid}"}>
                           <.table_row_menu_link
                             navigate={
-                              PhoenixKit.Utils.Routes.locale_aware_path(
+                              Routes.locale_aware_path(
                                 assigns,
                                 "/admin/entities/#{entity.name}/data"
                               )
@@ -367,7 +367,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                           />
                           <.table_row_menu_link
                             navigate={
-                              PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.uuid}/edit")
+                              Routes.path("/admin/entities/#{entity.uuid}/edit")
                             }
                             icon="hero-pencil"
                             label={gettext("Edit")}
@@ -426,7 +426,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                   <div class="card-body">
                     <div class="flex items-start justify-between mb-4">
                       <.link
-                        navigate={PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.name}/data")}
+                        navigate={Routes.path("/admin/entities/#{entity.name}/data")}
                         class="flex items-center hover:text-primary transition-colors cursor-pointer group"
                       >
                         <div class="text-2xl mr-3">
@@ -488,14 +488,14 @@ defmodule PhoenixKitEntities.Web.Entities do
                       <.table_row_menu mode="auto" id={"entity-card-menu-#{entity.uuid}"}>
                         <.table_row_menu_link
                           navigate={
-                            PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.name}/data")
+                            Routes.path("/admin/entities/#{entity.name}/data")
                           }
                           icon="hero-arrow-right"
                           label={gettext("Go to Data")}
                         />
                         <.table_row_menu_link
                           navigate={
-                            PhoenixKit.Utils.Routes.path("/admin/entities/#{entity.uuid}/edit")
+                            Routes.path("/admin/entities/#{entity.uuid}/edit")
                           }
                           icon="hero-pencil"
                           label={gettext("Edit")}

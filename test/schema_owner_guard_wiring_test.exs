@@ -29,6 +29,9 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
   # can't go through either case template, but it needs the same exclusion
   # when Postgres is unavailable (see `test_helper.exs`'s `exclude` list).
   @moduletag :integration
+  # Clones scratch databases via the `postgres` maintenance database; excluded
+  # by `test_helper.exs` when that connection is refused.
+  @moduletag :maintenance_db
 
   # Real randomness (not a PID or node name — either could coincidentally
   # repeat across two different hosts hitting the same shared instance) so

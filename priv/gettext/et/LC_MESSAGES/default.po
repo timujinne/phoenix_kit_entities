@@ -483,11 +483,6 @@ msgstr "Loo üksus"
 msgid "Create New %{entity}"
 msgstr "Loo uus %{entity}"
 
-#: lib/phoenix_kit_entities/web/entity_form.ex:1755
-#, elixir-autogen, elixir-format
-msgid "Create New Entity"
-msgstr "Loo uus üksus"
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1301
 #: lib/phoenix_kit_entities/web/entities.ex:262
 #, elixir-autogen, elixir-format
@@ -749,12 +744,6 @@ msgstr "Muuda"
 msgid "Edit %{entity}"
 msgstr "Muuda %{entity}"
 
-#: lib/phoenix_kit_entities/web/data_form.ex:74
-#: lib/phoenix_kit_entities/web/data_form.ex:92
-#, elixir-autogen, elixir-format
-msgid "Edit Data"
-msgstr "Muuda andmeid"
-
 #: lib/phoenix_kit_entities/web/data_navigator.ex:1033
 #: lib/phoenix_kit_entities/web/entity_form.ex:59
 #, elixir-autogen, elixir-format
@@ -926,11 +915,6 @@ msgstr "Üksus „%{name}” oli teises seansis %{status}."
 #, elixir-autogen, elixir-format
 msgid "Entity Information"
 msgstr "Üksuse teave"
-
-#: lib/phoenix_kit_entities/web/entities.ex:201
-#, elixir-autogen, elixir-format
-msgid "Entity Manager"
-msgstr "Üksuste haldur"
 
 #: lib/phoenix_kit_entities/web/entity_form.ex:1922
 #, elixir-autogen, elixir-format
@@ -1456,6 +1440,11 @@ msgstr "Peegeldamine ja eksport"
 msgid "Missing required keys: %{keys}"
 msgstr "Puuduvad kohustuslikud võtmed: %{keys}"
 
+#: lib/phoenix_kit_entities/web/entities.ex:36
+#, elixir-autogen, elixir-format
+msgid "Modules"
+msgstr "Moodulid"
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2192
 #, elixir-autogen, elixir-format
 msgid "Move down"
@@ -1504,12 +1493,6 @@ msgstr "Navigeerimine"
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "Mitte kunagi"
-
-#: lib/phoenix_kit_entities/web/data_form.ex:107
-#: lib/phoenix_kit_entities/web/data_form.ex:119
-#, elixir-autogen, elixir-format
-msgid "New Data"
-msgstr "Uued andmed"
 
 #: lib/phoenix_kit_entities/web/entities.ex:241
 #: lib/phoenix_kit_entities/web/entity_form.ex:72
