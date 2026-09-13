@@ -191,6 +191,208 @@ defmodule PhoenixKitEntities.Web.EntitiesLiveTest do
     end
   end
 
+  describe "managed blueprint rows" do
+    defp create_managed(ctx, name, settings_overrides \\ %{}) do
+      Entities.create_entity(
+        %{
+          name: name,
+          display_name: "Catalogue Set #{name}",
+          display_name_plural: "Catalogue Sets",
+          fields_definition: [],
+          status: "published",
+          created_by_uuid: ctx.actor_uuid,
+          settings:
+            Map.merge(%{"managed_by" => "catalogue", "locked_keys" => []}, settings_overrides)
+        },
+        on_behalf_of: "catalogue"
+      )
+    end
+
+    test "hides the archive/restore button and shows a managed badge instead",
+         %{conn: conn} = ctx do
+      {:ok, managed} = create_managed(ctx, "catalogue_set_menu_managed")
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ ~s(phx-click="archive_entity")
+      refute menu_html =~ ~s(phx-click="restore_entity")
+      assert menu_html =~ "Managed by catalogue"
+    end
+
+    test "renders a link to the owner admin when managed_path is a root-relative string",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_link", %{
+          "managed_path" => "/admin/catalogue/attributes"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert menu_html =~ ~r{href="[^"]*/admin/catalogue/attributes"}
+      assert menu_html =~ "Open in catalogue admin"
+    end
+
+    test "omits the link when managed_path is absent", %{conn: conn} = ctx do
+      {:ok, managed} = create_managed(ctx, "catalogue_set_menu_no_path")
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+    end
+
+    test "omits the link when managed_path is not a root-relative string",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_bad_path", %{
+          "managed_path" => "https://evil.example/x"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+
+    # MAJOR (2026-09-11 review): `String.starts_with?(path, "/")` alone
+    # accepts `//evil.example/x` too — a PROTOCOL-RELATIVE URL, not a
+    # same-app path. `PhoenixKit.Utils.Routes.path/1` only prefixes the
+    # locale/mount segments; it does not itself refuse a path shaped like
+    # that. Whether the rendered `href` actually leaves the admin's origin
+    # depends on that prefixing: with core mounted at the site root
+    # (`url_prefix` "/") AND no locale segment inserted, `path/1` passes
+    # `//evil.example/x` through unchanged, a real open redirect — but a
+    # locale segment (the common case; this suite's own mount emits one)
+    # lands it at e.g. `/phoenix_kit/en//evil.example/x`, which is still
+    # same-origin. The shape is rejected here unconditionally regardless of
+    # mount, since the owning module's settings shouldn't get to depend on
+    # deployment specifics for safety. The `https://evil.example/x` case
+    # above never exercised this: `starts_with?(path, "/")` was already
+    # false for it.
+    test "omits the link when managed_path is a protocol-relative URL",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_protocol_relative", %{
+          "managed_path" => "//evil.example/x"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+
+    test "omits the link when managed_path is a backslash-prefixed URL",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_backslash", %{
+          "managed_path" => "/\\evil.example/x"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+
+    # MAJOR (2026-09-11 review): per WHATWG, a browser strips ASCII
+    # tab/newline/CR from a URL before parsing it — `"/\t/evil.example"`
+    # collapses to `//evil.example` by the time it reaches
+    # `window.location`, the same protocol-relative URL as the case above
+    # under a spelling `String.starts_with?(path, "//")` alone would miss.
+    # `\n` and `\r` collapse the same way.
+    test "omits the link when managed_path is tab-prefixed (browser-stripped)",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_tab", %{
+          "managed_path" => "/\t/evil.example"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+
+    test "omits the link when managed_path is newline-prefixed (browser-stripped)",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_newline", %{
+          "managed_path" => "/\n/evil.example"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+
+    test "omits the link when managed_path is carriage-return-prefixed (browser-stripped)",
+         %{conn: conn} = ctx do
+      {:ok, managed} =
+        create_managed(ctx, "catalogue_set_menu_cr", %{
+          "managed_path" => "/\r/evil.example"
+        })
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      menu_html =
+        Regex.run(~r/<div id="entity-menu-#{managed.uuid}".*?<\/div>/s, html)
+        |> List.first()
+
+      assert is_binary(menu_html), "expected dropdown markup for entity-menu-#{managed.uuid}"
+      refute menu_html =~ "Open in"
+      refute menu_html =~ "evil.example"
+    end
+  end
+
   describe "handle_info catch-all" do
     test "ignores unrelated messages without crashing",
          %{conn: conn} = ctx do

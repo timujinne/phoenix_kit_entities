@@ -317,6 +317,24 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
     end
   end
 
+  # KNOWN GAP (2026-09-11 review): every test in this file runs with the
+  # Languages module off, so `@show_multilang_tabs` is always false and
+  # the "multilang: unified card with language tabs" template branch in
+  # data_form.ex (the `<%= if @show_multilang_tabs do %>` arm) never
+  # renders here — only its "non-multilang: separate cards" sibling does.
+  # Turning Languages on for one test isn't a safe way to close this:
+  # `PhoenixKit.Modules.Languages.enable_system/0` writes through
+  # `PhoenixKit.Cache`, an ETS table outside the SQL sandbox transaction
+  # this test's `on_exit` rollback doesn't touch — the "enabled" config
+  # would leak into every test that runs after it in the suite. Closing
+  # this needs either a cache-reset hook run around such a test or a
+  # render/1-level unit test that hand-builds `assigns` (fragile against
+  # unrelated assign changes elsewhere in the LiveView). Until then, the
+  # two branches are kept structurally identical by hand (see
+  # `managed_blueprint?/2` and its 8 call sites, and the hidden slug
+  # mirror's `|| ""`, in data_form.ex) so a fix applied to one is applied
+  # to both.
+
   describe "switch_language event" do
     test "ignores unknown language without crashing", %{conn: conn} = ctx do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
@@ -587,6 +605,337 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
 
       render_hook(view, "generate_slug", %{})
       assert page_title(view) =~ "Edit DF Test"
+    end
+  end
+
+  describe "managed blueprint value records" do
+    setup ctx do
+      {:ok, managed_entity} =
+        Entities.create_entity(
+          %{
+            name: "catalogue_set_df_managed",
+            display_name: "Catalogue Set DF Managed",
+            display_name_plural: "Catalogue Sets",
+            fields_definition: [],
+            status: "published",
+            created_by_uuid: ctx.actor_uuid,
+            settings: %{"managed_by" => "catalogue", "locked_keys" => []}
+          },
+          on_behalf_of: "catalogue"
+        )
+
+      {:ok, managed_record} =
+        EntityData.create(
+          %{
+            entity_uuid: managed_entity.uuid,
+            title: "Oak",
+            slug: "oak",
+            status: "published",
+            data: %{},
+            created_by_uuid: ctx.actor_uuid
+          },
+          actor_uuid: ctx.actor_uuid
+        )
+
+      {:ok, managed_entity: managed_entity, managed_record: managed_record}
+    end
+
+    test "the slug field is disabled with a locked hint, and Generate is hidden",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, edit_url(ctx.managed_entity, ctx.managed_record))
+
+      assert html =~ "Locked — the owning module keys on this slug"
+      refute html =~ ~s(phx-click="generate_slug")
+
+      slug_input =
+        Regex.run(~r/<input[^>]*id="phoenix_kit_entity_data_slug"[^>]*>/, html) |> List.first()
+
+      assert is_binary(slug_input)
+      assert slug_input =~ "disabled"
+    end
+
+    test "a disabled field still submits its value via a hidden mirror",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, edit_url(ctx.managed_entity, ctx.managed_record))
+
+      assert html =~
+               ~r/<input\s+type="hidden"\s+name="phoenix_kit_entity_data\[slug\]"\s+value="oak"/
+    end
+
+    test "resubmitting the unchanged slug still saves other fields",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.managed_entity, ctx.managed_record))
+
+      render_submit(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak (renamed title)", "slug" => "oak"}
+      })
+
+      after_save = EntityData.get(ctx.managed_record.uuid)
+      assert after_save.title == "Oak (renamed title)"
+      assert after_save.slug == "oak"
+    end
+
+    # A multilang row whose primary language carries no `_slug` of its own
+    # (the shape `EntityData.create/2` stores when an owner creates a value
+    # with only the `slug` column set). Mount seeds `data[primary]["_slug"]`
+    # from the column, so every save posts it back — that is the column's
+    # own value, not a rename, and must not lock the form.
+    test "a multilang row without a stored primary _slug still saves",
+         %{conn: conn} = ctx do
+      {:ok, multilang_record} =
+        EntityData.create(
+          %{
+            entity_uuid: ctx.managed_entity.uuid,
+            title: "Birch",
+            slug: "birch",
+            status: "published",
+            data: %{"_primary_language" => "en-US", "en-US" => %{"_title" => "Birch"}},
+            created_by_uuid: ctx.actor_uuid
+          },
+          actor_uuid: ctx.actor_uuid
+        )
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.managed_entity, multilang_record))
+
+      view
+      |> form("#entity-data-form", %{
+        "phoenix_kit_entity_data" => %{"title" => "Birch (renamed title)"}
+      })
+      |> render_submit()
+
+      refute render(view) =~ "locked by its owning module"
+
+      after_save = EntityData.get(multilang_record.uuid)
+      assert after_save.title == "Birch (renamed title)"
+      assert after_save.slug == "birch"
+    end
+
+    test "a crafted slug change is refused at the write path, with a flash",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.managed_entity, ctx.managed_record))
+
+      render_submit(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak", "slug" => "forged-slug"}
+      })
+
+      assert render(view) =~ "locked by its owning module"
+
+      after_save = EntityData.get(ctx.managed_record.uuid)
+      assert after_save.slug == "oak"
+      assert after_save.title == "Oak"
+    end
+
+    # MINOR-2 (2026-09-11 review): the `:locked_key` branch used to leave
+    # the rejected slug sitting in the changeset. The hidden mirror would
+    # then resubmit "forged-slug" on every subsequent save — wedging the
+    # form exactly like the `generate_slug` bug below (MINOR-1) — and the
+    # flash's own advice ("revert that change to save") was unactionable
+    # since the field is disabled. Before this fix, the second
+    # `render_submit` below would still be refused with the same flash.
+    test "after a refused slug change, the form recovers without a reload",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.managed_entity, ctx.managed_record))
+
+      # A forged "validate" (phx-change) event dirties the changeset with
+      # a slug the disabled field could never produce — `do_validate/2`
+      # builds the changeset straight from `data_params` with no
+      # `client_writable_params/2` filtering (that only runs on save), so
+      # nothing stops this at the changeset-build step; the write-path
+      # guard is what has to catch it, on the "save" that follows.
+      render_change(view, "validate", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak", "slug" => "forged-slug"}
+      })
+
+      render_submit(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak", "slug" => "forged-slug"}
+      })
+
+      html = render(view)
+
+      assert html =~
+               ~r/<input\s+type="hidden"\s+name="phoenix_kit_entity_data\[slug\]"\s+value="oak"/
+
+      refute html =~ "forged-slug"
+
+      # `form/3` + `render_submit/1` (rather than `render_submit(view,
+      # "save", params)`) walks the ACTUAL rendered markup: the disabled
+      # slug input is excluded and the hidden mirror's CURRENT value is
+      # what gets submitted, same as a real browser — not a slug typed by
+      # hand in the test. That is the scenario this test guards: before
+      # the fix, the mirror was still stuck on "forged-slug" here and
+      # this save would fail with the very same flash.
+      view
+      |> form("#entity-data-form", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak (retry)"}
+      })
+      |> render_submit()
+
+      after_save = EntityData.get(ctx.managed_record.uuid)
+      assert after_save.title == "Oak (retry)"
+      assert after_save.slug == "oak"
+    end
+
+    # MINOR-1 (2026-09-11 review): the Generate button is hidden via `:if`
+    # on a managed record, but `handle_event("generate_slug", ...)` was
+    # unconditional — a LiveView event is not bound by the markup that
+    # produced it. Before this fix, the `render_hook` below rewrote the
+    # hidden slug mirror to "oak-wood" even though Generate is gone from
+    # the page, and every ordinary save afterward was refused with
+    # `:locked_key` (data safe, but the form was stuck — only a reload
+    # cleared it).
+    test "a forged generate_slug event cannot wedge a managed record's form",
+         %{conn: conn} = ctx do
+      {:ok, record} =
+        EntityData.create(
+          %{
+            entity_uuid: ctx.managed_entity.uuid,
+            title: "Oak Wood",
+            slug: "oak",
+            status: "published",
+            data: %{},
+            created_by_uuid: ctx.actor_uuid
+          },
+          actor_uuid: ctx.actor_uuid
+        )
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.managed_entity, record))
+
+      render_hook(view, "generate_slug", %{})
+
+      html = render(view)
+
+      assert html =~
+               ~r/<input\s+type="hidden"\s+name="phoenix_kit_entity_data\[slug\]"\s+value="oak"/
+
+      refute html =~ "oak-wood"
+
+      # `form/3` + `render_submit/1` submits the mirror's ACTUAL current
+      # value rather than one typed by hand — see the comment on the
+      # MINOR-2 test above.
+      view
+      |> form("#entity-data-form", %{
+        "phoenix_kit_entity_data" => %{"title" => "Oak Wood (edited)"}
+      })
+      |> render_submit()
+
+      after_save = EntityData.get(record.uuid)
+      assert after_save.title == "Oak Wood (edited)"
+      assert after_save.slug == "oak"
+    end
+
+    test "the owner can still change the slug via on_behalf_of", %{conn: _conn} = ctx do
+      assert {:ok, updated} =
+               EntityData.update(ctx.managed_record, %{"slug" => "renamed-by-owner"},
+                 on_behalf_of: "catalogue"
+               )
+
+      assert updated.slug == "renamed-by-owner"
+    end
+
+    test "unmanaged records are unaffected — slug changes freely", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
+
+      render_submit(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Hello", "slug" => "hello-renamed"}
+      })
+
+      after_save = EntityData.get(ctx.record.uuid)
+      assert after_save.slug == "hello-renamed"
+    end
+
+    # CRITICAL (2026-09-11 review): `managed_blueprint?/1` used to lock the
+    # slug field on `/data/new` too, disabling it and hiding Generate —
+    # the same treatment as an EXISTING record. But on creation there is
+    # no prior slug to protect, and the disabled field's hidden mirror
+    # always posts `""` (nothing has been typed yet): the record was
+    # created with `slug: nil`, permanently, since `changeset/2` never
+    # derives a slug from the title. `managed_blueprint?/2` now also
+    # checks `@data_record.uuid` — locking only an EXISTING record.
+    test "the slug field and Generate are available when CREATING a managed value record",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, new_url(ctx.managed_entity))
+
+      refute html =~ "Locked — the owning module keys on this slug"
+      assert html =~ ~s(phx-click="generate_slug")
+
+      slug_input =
+        Regex.run(~r/<input[^>]*id="phoenix_kit_entity_data_slug"[^>]*>/, html) |> List.first()
+
+      assert is_binary(slug_input)
+      refute slug_input =~ "disabled"
+    end
+
+    test "creating a managed value record with a slug persists it (not nil)",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, new_url(ctx.managed_entity))
+
+      # `form/3` + `render_submit/1` (rather than `render_submit(view, "save",
+      # params)`) actually walk the rendered markup: a `disabled` slug input is
+      # excluded from what gets submitted, same as a real browser. That is the
+      # scenario this test guards — `managed_blueprint?/2` wrongly locking the
+      # slug field on CREATE — so it must go through the disabled check to be
+      # able to fail when that regresses.
+      view
+      |> form("#entity-data-form", %{
+        "phoenix_kit_entity_data" => %{"title" => "Maple", "slug" => "maple"}
+      })
+      |> render_submit()
+
+      created = EntityData.get_by_slug(ctx.managed_entity.uuid, "maple")
+      assert created
+      assert created.title == "Maple"
+    end
+
+    # CRITICAL (2026-09-11 review): `renames_data_slug?/2` treated an
+    # empty new slug as a rename whenever the record's slug wasn't
+    # already `""` (it compared `is_binary("") and "" != nil`, which is
+    # `true`) — so a record that legitimately has `slug: nil` (created
+    # without one; possible even after the CREATE-path fix above, since
+    # a blank slug has always been valid) could never be saved again:
+    # the disabled field's hidden mirror resubmits `""`, and every save
+    # — even a title-only edit — was refused as a locked-key rename.
+    test "a managed value record created without a slug can still be saved again",
+         %{conn: conn} = ctx do
+      {:ok, no_slug_record} =
+        EntityData.create(
+          %{
+            entity_uuid: ctx.managed_entity.uuid,
+            title: "Birch",
+            slug: nil,
+            status: "published",
+            data: %{},
+            created_by_uuid: ctx.actor_uuid
+          },
+          actor_uuid: ctx.actor_uuid
+        )
+
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, html} = live(conn, edit_url(ctx.managed_entity, no_slug_record))
+
+      # The hidden mirror posts back `""`, matching the DB's `nil` — not a
+      # rename.
+      assert html =~
+               ~r/<input\s+type="hidden"\s+name="phoenix_kit_entity_data\[slug\]"\s+value=""/
+
+      render_submit(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Birch (renamed)", "slug" => ""}
+      })
+
+      refute render(view) =~ "locked by its owning module"
+
+      after_save = EntityData.get(no_slug_record.uuid)
+      assert after_save.title == "Birch (renamed)"
+      assert is_nil(after_save.slug)
     end
   end
 
@@ -882,6 +1231,8 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
 
   defp edit_url(entity, record),
     do: "/en/admin/entities/#{entity.name}/data/#{record.uuid}/edit"
+
+  defp new_url(entity), do: "/en/admin/entities/#{entity.name}/data/new"
 
   # The form's `data` JSONB as the LV currently holds it. Read off the
   # socket rather than the rendered HTML: without the Languages module

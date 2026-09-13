@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.4.12"
+  @version "0.4.13"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do
@@ -119,6 +119,15 @@ defmodule PhoenixKitEntities.MixProject do
       # 1.7.214+ required: Scope.can_access_admin_area?/1 (the rename of the
       # now-`@deprecated` Scope.admin?/1) — an older core has no such function,
       # so this is an UndefinedFunctionError at runtime, not a warning.
+      #
+      # Kept a two-segment `~> 2.0` on purpose (see
+      # test/core_pin_conformance_test.exs): PhoenixKitEntities.Migrations
+      # (lib/phoenix_kit_entities/migrations.ex) adopts core's V169 shape —
+      # `phoenix_kit_entity_data.created_by_uuid` nullable, first shipped in
+      # phoenix_kit 2.4.0 — but narrowing this to `~> 2.4` would make
+      # `mix deps.get` unsolvable for every host pairing this module with a
+      # newer core minor. The V169 floor is documented on the migration
+      # module's moduledoc instead.
       pk_dep(:phoenix_kit, "~> 2.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)

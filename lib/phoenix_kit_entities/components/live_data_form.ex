@@ -471,9 +471,25 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
 
         :error
 
-      {:error, changeset} ->
+      # MINOR-5 (2026-09-11 review): a bare `{:error, changeset}` catch-all
+      # here would also match `EntityData.update/3`'s `{:error, :locked_key}`
+      # (`Managed.validate_data_mutation/4`) and raise `KeyError` calling
+      # `.errors` on an atom instead of a changeset. Unreachable today —
+      # this call only ever sends `%{"data" => ...}`, and the merge in
+      # this function preserves the record's own multilang/slug data
+      # untouched — but the split costs nothing and this is exactly the
+      # assumption the guard's own comments warn will eventually break.
+      {:error, %Ecto.Changeset{} = changeset} ->
         Logger.error(
           "LiveDataForm #{log_context} failed: #{inspect(changeset.errors)} " <>
+            "(entity_uuid=#{inspect(entity.uuid)} record_uuid=#{inspect(record.uuid)})"
+        )
+
+        :error
+
+      {:error, other} ->
+        Logger.error(
+          "LiveDataForm #{log_context} failed: #{inspect(other)} " <>
             "(entity_uuid=#{inspect(entity.uuid)} record_uuid=#{inspect(record.uuid)})"
         )
 

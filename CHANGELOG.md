@@ -1,3 +1,52 @@
+## 0.4.13 - 2026-09-13
+
+### Added
+
+- **Slugs of a managed blueprint's value records are locked on the write path**
+  (#44). `EntityData.update/3` refuses a non-owner update with
+  `{:error, :locked_key}` when it would:
+  - rename a record's `slug`;
+  - re-parent the record via `entity_uuid`;
+  - change a per-language `data[lang]["_slug"]`.
+
+  Owners pass `on_behalf_of: "<owner>"`. In the admin data form, the slug field
+  is disabled on existing managed records and Generate is hidden (and gated
+  server-side).
+- **The entities list shows "Managed by …"** in place of Archive/Restore for a
+  managed blueprint, with a link to the owner's admin when
+  `settings["managed_path"]` is a safe local path (#44).
+- **`EntityData.bulk_delete/2` broadcasts `:data_deleted` for every row it
+  removes**, matching the single-record delete, so owner subscribers can prune
+  dangling slug references (#44).
+- **The test suite refuses to run against a live database** (#45).
+  `Test.LiveDatabaseGuard` runs before any connection. It rejects a resolved
+  name that does not end in `_test` (optionally followed by digits), and any
+  name listed in `PHOENIX_KIT_LIVE_DATABASES`.
+- **`Events.flush_data_events/0`** drops queued data lifecycle messages from the
+  caller's mailbox.
+
+### Fixed
+
+- **A multilang save of a managed value record no longer locks the form for
+  good.** The multilang form injects the `slug` column's value as the primary
+  language's `_slug` on every save. For a row stored without its own primary
+  `_slug` (what `EntityData.create/2` writes when only `slug` is set), the guard
+  read that value as a rename and refused every save.
+- **A bulk delete no longer triggers one full reload per deleted row** in every
+  open data list and Entities Settings page. Both handlers now collapse queued
+  data events into a single refresh.
+- `LiveDataForm` and `Mirror.Importer` no longer treat a non-changeset error
+  from `EntityData.update/3` as a changeset (#44).
+
+### Changed
+
+- Documentation: the migration moduledoc states the core `V169` floor (first
+  released in `phoenix_kit` 2.4.0), and `mix.exs` explains why the pin stays
+  `~> 2.0` (#46). The README now cites core's `V135` baseline instead of the
+  pre-squash `V17`… history.
+- Tests pin every adopted index and constraint name, and cover
+  `migrated_version_runtime/1` against real table comments (#46).
+
 ## 0.4.12 - 2026-09-07
 
 ### Fixed

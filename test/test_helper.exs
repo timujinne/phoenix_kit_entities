@@ -21,8 +21,8 @@
 
 require Logger
 
-alias PhoenixKitEntities.Test.Repo, as: TestRepo
 alias PhoenixKitEntities.Test.LiveDatabaseGuard
+alias PhoenixKitEntities.Test.Repo, as: TestRepo
 alias PhoenixKitEntities.Test.SchemaOwnerGuard
 
 # Pin URL prefix to "/" via persistent_term so PhoenixKit.Utils.Routes.path/2
@@ -36,8 +36,7 @@ db_name = db_config[:database] || "phoenix_kit_entities_test"
 
 # S014: refuse before anything else touches the database — see
 # PhoenixKitEntities.Test.LiveDatabaseGuard's moduledoc for why this exists
-# alongside (not instead of) SchemaOwnerGuard and the external `pk-test`
-# wrapper.
+# alongside (not instead of) SchemaOwnerGuard.
 LiveDatabaseGuard.check!(db_name)
 
 # The preflight ships in core, and this module's core floor (`~> 2.0`)

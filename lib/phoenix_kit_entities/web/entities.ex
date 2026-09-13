@@ -198,6 +198,92 @@ defmodule PhoenixKitEntities.Web.Entities do
     (socket.assigns[:url_path] || "") |> URI.parse() |> Map.get(:path) || "/"
   end
 
+  # The owning module's own admin URL for a managed blueprint — read
+  # straight off `settings["managed_path"]`, a value the owner module wrote
+  # there itself (see `PhoenixKitEntities.Managed`). No runtime registry and
+  # no catalogue-specific knowledge here: only a same-app-relative path is
+  # ever rendered, so a managed blueprint's settings can't be used to point
+  # this link off-site.
+  defp managed_admin_path(%{settings: settings}) when is_map(settings) do
+    case settings["managed_path"] do
+      path when is_binary(path) -> if root_relative_path?(path), do: path
+      _ -> nil
+    end
+  end
+
+  defp managed_admin_path(_), do: nil
+
+  # `String.starts_with?(path, "/")` alone still accepts `//evil.example/x`
+  # (and the backslash variant a browser normalizes the same way): a
+  # PROTOCOL-RELATIVE URL, not a same-app path. Rejecting only those two
+  # literal shapes is still not enough — per WHATWG, a browser strips ASCII
+  # tab/newline/CR from a URL before parsing it, so `"/\t/evil.example"`
+  # (or `\n`, `\r`) collapses to `//evil.example` by the time it reaches
+  # `window.location`, the same host-switching URL under a different
+  # spelling. `PhoenixKit.Utils.Routes.path/1` only prefixes the
+  # locale/mount segments — it does not itself refuse a path shaped like
+  # that — so a `managed_path` this permissive can still produce a
+  # protocol-relative `href` (reachable via `Mirror.Importer`'s `:merge`
+  # strategy, which deep-merges settings from an imported JSON file
+  # untouched by the write guard's marker checks). Whether that `href`
+  # actually leaves the admin's origin depends on how the host mounts
+  # core and on locale routing — see the test for the concrete case.
+  #
+  # Delegates to `PhoenixKit.Utils.Routes.local_path?/1` rather than
+  # re-deriving the same check here: it is core's own open-redirect guard
+  # for exactly this shape of value (a same-app-relative path read back
+  # from stored settings/params), already rejects every ASCII control
+  # character rather than only tab/newline/CR, and keeps this module in
+  # sync with core's guard instead of maintaining a second copy of it.
+  defp root_relative_path?(path), do: Routes.local_path?(path)
+
+  attr(:entity, :map, required: true)
+
+  # The row menu's lifecycle section — a "Managed by <owner>" notice plus
+  # an optional link to the owner's own admin for a managed blueprint, or
+  # the ordinary Archive/Restore button otherwise. Table and card views
+  # rendered this identically as two copies; kept as one so a future fix
+  # here (like `root_relative_path?/1` above) lands in one place.
+  defp entity_lifecycle_menu_items(assigns) do
+    ~H"""
+    <%= if PhoenixKitEntities.Managed.managed?(@entity) do %>
+      <li
+        role="presentation"
+        class="flex items-center gap-2 px-3 py-2 text-sm text-base-content/60"
+      >
+        <.icon name="hero-lock-closed" class="w-4 h-4 shrink-0 opacity-70" />
+        {gettext("Managed by %{owner}", owner: PhoenixKitEntities.Managed.owner(@entity))}
+      </li>
+      <.table_row_menu_link
+        :if={path = managed_admin_path(@entity)}
+        href={PhoenixKit.Utils.Routes.path(path)}
+        icon="hero-arrow-top-right-on-square"
+        label={
+          gettext("Open in %{owner} admin", owner: PhoenixKitEntities.Managed.owner(@entity))
+        }
+      />
+    <% else %>
+      <%= if @entity.status == "archived" do %>
+        <.table_row_menu_button
+          phx-click="restore_entity"
+          phx-value-uuid={@entity.uuid}
+          phx-disable-with={gettext("…")}
+          icon="hero-arrow-path"
+          label={gettext("Restore")}
+        />
+      <% else %>
+        <.table_row_menu_button
+          phx-click="archive_entity"
+          phx-value-uuid={@entity.uuid}
+          phx-disable-with={gettext("…")}
+          icon="hero-trash"
+          label={gettext("Archive")}
+        />
+      <% end %>
+    <% end %>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -373,23 +459,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                             label={gettext("Edit")}
                           />
                           <.table_row_menu_divider />
-                          <%= if entity.status == "archived" do %>
-                            <.table_row_menu_button
-                              phx-click="restore_entity"
-                              phx-value-uuid={entity.uuid}
-                              phx-disable-with={gettext("…")}
-                              icon="hero-arrow-path"
-                              label={gettext("Restore")}
-                            />
-                          <% else %>
-                            <.table_row_menu_button
-                              phx-click="archive_entity"
-                              phx-value-uuid={entity.uuid}
-                              phx-disable-with={gettext("…")}
-                              icon="hero-trash"
-                              label={gettext("Archive")}
-                            />
-                          <% end %>
+                          <.entity_lifecycle_menu_items entity={entity} />
                         </.table_row_menu>
                       </.table_default_cell>
                     </.table_default_row>
@@ -501,23 +571,7 @@ defmodule PhoenixKitEntities.Web.Entities do
                           label={gettext("Edit")}
                         />
                         <.table_row_menu_divider />
-                        <%= if entity.status == "archived" do %>
-                          <.table_row_menu_button
-                            phx-click="restore_entity"
-                            phx-value-uuid={entity.uuid}
-                            phx-disable-with={gettext("…")}
-                            icon="hero-arrow-path"
-                            label={gettext("Restore")}
-                          />
-                        <% else %>
-                          <.table_row_menu_button
-                            phx-click="archive_entity"
-                            phx-value-uuid={entity.uuid}
-                            phx-disable-with={gettext("…")}
-                            icon="hero-trash"
-                            label={gettext("Archive")}
-                          />
-                        <% end %>
+                        <.entity_lifecycle_menu_items entity={entity} />
                       </.table_row_menu>
                     </div>
 

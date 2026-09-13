@@ -320,6 +320,37 @@ defmodule PhoenixKitEntities.EntityDataExtrasTest do
 
       assert EntityData.get(ctx.alpha.uuid) == nil
     end
+
+    # Parent-PR review (2026-09-11): unlike the single-record `delete/2`
+    # path (`notify_data_event/3`'s `:deleted` clause), `bulk_delete/2`
+    # ran `delete_all` in a transaction and sent no PubSub event at all —
+    # so a subscriber that prunes dangling slug references never fired
+    # on the most common way to delete a value forever (emptying the
+    # trash from the generic data admin).
+    test "bulk_delete/2 broadcasts :data_deleted for every deleted record", ctx do
+      PhoenixKitEntities.Events.subscribe_to_all_data()
+
+      assert {2, nil} =
+               EntityData.bulk_delete([ctx.alpha.uuid, ctx.beta.uuid],
+                 actor_uuid: ctx.actor_uuid
+               )
+
+      alpha_uuid = ctx.alpha.uuid
+      beta_uuid = ctx.beta.uuid
+      entity_uuid = ctx.entity.uuid
+
+      assert_receive {:data_deleted, ^entity_uuid, ^alpha_uuid}, 1_000
+      assert_receive {:data_deleted, ^entity_uuid, ^beta_uuid}, 1_000
+      # gamma was not part of the bulk_delete call — no event for it.
+      refute_receive {:data_deleted, _, _}, 100
+    end
+
+    test "bulk_delete/2 on an empty list deletes nothing and broadcasts nothing", _ctx do
+      PhoenixKitEntities.Events.subscribe_to_all_data()
+
+      assert {0, nil} = EntityData.bulk_delete([])
+      refute_receive {:data_deleted, _, _}, 100
+    end
   end
 
   describe "translation helpers" do

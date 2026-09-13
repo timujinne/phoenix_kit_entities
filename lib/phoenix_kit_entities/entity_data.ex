@@ -88,6 +88,7 @@ defmodule PhoenixKitEntities.EntityData do
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.Events
   alias PhoenixKitEntities.FieldTypes
+  alias PhoenixKitEntities.Managed
   alias PhoenixKitEntities.Mirror.Exporter
   alias PhoenixKitEntities.UrlResolver
   @type t :: %__MODULE__{}
@@ -1873,22 +1874,60 @@ defmodule PhoenixKitEntities.EntityData do
       {:error, :status_mismatch}
   """
   @spec update(t(), map(), keyword()) ::
-          {:ok, t()} | {:error, Ecto.Changeset.t() | :status_mismatch}
+          {:ok, t()} | {:error, Ecto.Changeset.t() | :status_mismatch | :locked_key}
   def update(%__MODULE__{} = entity_data, attrs, opts \\ []) do
-    case Keyword.get(opts, :require_status) do
-      nil ->
-        entity_data
-        |> changeset(attrs)
-        |> repo().update()
-        |> notify_data_event(:updated, opts)
+    case validate_managed_slug(entity_data, attrs, opts) do
+      :ok ->
+        case Keyword.get(opts, :require_status) do
+          nil ->
+            entity_data
+            |> changeset(attrs)
+            |> repo().update()
+            |> notify_data_event(:updated, opts)
 
-      statuses when is_list(statuses) ->
-        update_with_status_guard(entity_data, attrs, statuses, opts)
+          statuses when is_list(statuses) ->
+            update_with_status_guard(entity_data, attrs, statuses, opts)
 
-      status when is_binary(status) ->
-        raise ArgumentError,
-              "require_status expects a list of statuses, got a binary " <>
-                "(#{inspect(status)}) — wrap it in a list, e.g. require_status: [#{inspect(status)}]"
+          status when is_binary(status) ->
+            raise ArgumentError,
+                  "require_status expects a list of statuses, got a binary " <>
+                    "(#{inspect(status)}) — wrap it in a list, e.g. require_status: [#{inspect(status)}]"
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # A managed blueprint's owner keys its own relations on a value record's
+  # slug (e.g. the catalogue's `selected_value_slugs`). `client_writable_params/2`
+  # (data_form.ex) does a `Map.take/2` — it keeps `"slug"` only when the
+  # incoming params already carry it, not unconditionally — but the admin
+  # data form's own template always posts that key (an enabled input, or a
+  # disabled field's hidden mirror), so a save from THAT form reaches this
+  # function with the key present every time, same as a `Mirror.Importer`
+  # save. Not every caller does, though:
+  # `components/live_data_form.ex`'s embedded record editor saves only
+  # `%{"data" => ...}`, no slug key at all, and takes the skip-on-absence
+  # path below instead. Either way, skipping the owning-entity lookup on
+  # absence alone isn't where most of the saving here comes from anyway.
+  # What actually saves the common case is `Managed.data_mutation_needs_owner?/2`:
+  # an ordinary save that resubmits the record's own unchanged values (the
+  # common case — a disabled field's hidden mirror, or a title-only edit
+  # that round-trips the current values) is cheap to detect without ever
+  # reading the owning entity, since `validate_data_mutation/4` would
+  # return `:ok` for it regardless of whether the blueprint turns out to
+  # be managed. Only an ACTUAL guarded-field change pays for the
+  # `Entities.get_entity/1` lookup (a `SELECT` plus `preload(:creator)`).
+  # Which fields are guarded, and the `on_behalf_of` bypass, are policy —
+  # that lives entirely in `Managed`, not here; see its moduledoc on UI
+  # guards without a write interceptor.
+  defp validate_managed_slug(entity_data, attrs, opts) do
+    if Managed.data_mutation_needs_owner?(entity_data, attrs) do
+      owning_entity = Entities.get_entity(entity_data.entity_uuid)
+      Managed.validate_data_mutation(owning_entity, entity_data, attrs, opts)
+    else
+      :ok
     end
   end
 
@@ -2790,7 +2829,20 @@ defmodule PhoenixKitEntities.EntityData do
     # Wrap the activity-log call OUTSIDE the transaction so a logging
     # failure can't be misclassified as `:referenced_by_external`.
     case run_bulk_delete_txn(uuids) do
-      {:ok, {count, _} = result} ->
+      {:ok, {count, deleted}} ->
+        # Parity with the single-record path (`notify_data_event/3`'s
+        # `:deleted` clause): a bulk hard-delete is the ordinary way to
+        # remove a value permanently (emptying the trash — see
+        # `web/data_navigator.ex`'s "Delete forever"), so the owner's
+        # own safety net (a subscriber that prunes dangling slug
+        # references) needs the same `:data_deleted` event per row this
+        # emits for a single delete. Per-record activity rows are still
+        # NOT logged here — only the operation-level row below — same
+        # as `bulk_update_status/3` and `bulk_trash/2`.
+        Enum.each(deleted, fn {data_uuid, entity_uuid} ->
+          Events.broadcast_data_deleted(entity_uuid, data_uuid)
+        end)
+
         PhoenixKitEntities.ActivityLog.log(%{
           action: "entity_data.bulk_deleted",
           mode: "manual",
@@ -2802,7 +2854,7 @@ defmodule PhoenixKitEntities.EntityData do
           }
         })
 
-        result
+        {count, nil}
 
       {:error, :has_children} ->
         log_data_error_activity(:bulk_deleted, opts)
@@ -2827,7 +2879,12 @@ defmodule PhoenixKitEntities.EntityData do
       # deleting, so the self-FK doesn't block.
       nullify_trashed_children(uuids)
 
-      from(d in __MODULE__, where: d.uuid in ^uuids)
+      # `select` gets the deleted rows' uuid/entity_uuid back atomically
+      # with the delete — no separate SELECT, no race with a concurrent
+      # delete of the same rows between two queries. (`delete_all/2` has
+      # no `:returning` option — `select` in the query is how Ecto
+      # returns data from a `DELETE`, same as `update_all/3`.)
+      from(d in __MODULE__, where: d.uuid in ^uuids, select: {d.uuid, d.entity_uuid})
       |> repo().delete_all()
     end)
   rescue

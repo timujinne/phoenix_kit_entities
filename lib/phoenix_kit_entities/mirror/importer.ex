@@ -307,7 +307,14 @@ defmodule PhoenixKitEntities.Mirror.Importer do
 
     case EntityData.update(existing_record, attrs) do
       {:ok, record} -> {:ok, :updated, record}
-      {:error, changeset} -> {:error, {:validation_failed, changeset}}
+      # A managed value record's slug (`Managed.validate_data_mutation/4`,
+      # wired into `EntityData.update/3`) refuses with the atom
+      # `:locked_key`, not a changeset — same split as
+      # `create_entity_from_import/1` above, for the same reason: label it
+      # as a refusal instead of a "validation failure" there is nothing to
+      # render field errors for.
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, {:validation_failed, changeset}}
+      {:error, reason} -> {:error, {:refused, reason}}
     end
   end
 
@@ -316,7 +323,8 @@ defmodule PhoenixKitEntities.Mirror.Importer do
 
     case EntityData.update(existing_record, attrs) do
       {:ok, record} -> {:ok, :updated, record}
-      {:error, changeset} -> {:error, {:validation_failed, changeset}}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, {:validation_failed, changeset}}
+      {:error, reason} -> {:error, {:refused, reason}}
     end
   end
 

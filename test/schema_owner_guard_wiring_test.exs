@@ -40,6 +40,11 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
   # exact "shared scratch DB" scenario I067 exists for in the first place.
   defp unique_suffix, do: :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
 
+  # S014: every name built from this prefix ends in `_test` (suffix appended
+  # AFTER the random part, not baked into the prefix) — LiveDatabaseGuard's
+  # name-shape rule now runs on every subprocess `mix test` this file spins
+  # up, including these scratch databases, and refuses anything that
+  # doesn't look like a test database.
   @scratch_db_prefix "i067_wiring_scratch"
 
   # Cloned from the repo's own already-migrated isolated test DB via
@@ -122,7 +127,7 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
       database: "postgres"
     ]
 
-    scratch_db = "#{@scratch_db_prefix}_#{unique_suffix()}"
+    scratch_db = "#{@scratch_db_prefix}_#{unique_suffix()}_test"
 
     {:ok, admin} = Postgrex.start_link(admin_opts)
     Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{scratch_db}", [])
@@ -213,7 +218,7 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
       database: "postgres"
     ]
 
-    foreign_db = "#{@foreign_db_prefix}_#{unique_suffix()}"
+    foreign_db = "#{@foreign_db_prefix}_#{unique_suffix()}_test"
 
     {:ok, admin} = Postgrex.start_link(admin_opts)
     Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{foreign_db}", [])

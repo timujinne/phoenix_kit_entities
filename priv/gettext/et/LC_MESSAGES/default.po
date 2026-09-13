@@ -2710,8 +2710,10 @@ msgstr "Seda üksust haldab teine moodul — muutke seda seal."
 msgid "Choose…"
 msgstr "Vali…"
 
-#: lib/phoenix_kit_entities/web/entities.ex:325
-#: lib/phoenix_kit_entities/web/entities.ex:451
+#: lib/phoenix_kit_entities/web/entities.ex:340
+#: lib/phoenix_kit_entities/web/entities.ex:397
+#: lib/phoenix_kit_entities/web/entities.ex:488
+#: lib/phoenix_kit_entities/web/entities.ex:547
 #, elixir-autogen, elixir-format
 msgid "Managed by %{owner}"
 msgstr "Haldab moodul %{owner}"
@@ -2726,7 +2728,13 @@ msgstr "Haldab moodul %{owner}. Slug, staatus ja mooduli lukustatud seaded on ka
 msgid "No media selected."
 msgstr "Meediat pole valitud."
 
-#: lib/phoenix_kit_entities/web/entities.ex:323
+#: lib/phoenix_kit_entities/web/entities.ex:406
+#: lib/phoenix_kit_entities/web/entities.ex:556
+#, elixir-autogen, elixir-format
+msgid "Open in %{owner} admin"
+msgstr "Ava mooduli %{owner} halduses"
+
+#: lib/phoenix_kit_entities/web/entities.ex:338
 #, elixir-autogen, elixir-format
 msgid "Owned by the %{owner} module — its structural settings are locked"
 msgstr "Kuulub moodulile %{owner} — selle struktuursed seaded on lukus"
@@ -2746,11 +2754,18 @@ msgstr "Vali video"
 msgid "The blueprint's slug, status and module-locked settings are protected — revert those changes to save."
 msgstr "Slug, staatus ja mooduli lukustatud seaded on kaitstud — tühista need muudatused salvestamiseks."
 
+#: lib/phoenix_kit_entities/web/data_form.ex:754
+#, elixir-autogen, elixir-format
+msgid "This record's slug is locked by its owning module — revert that change to save."
+msgstr "Selle kirje slug on lukustatud omava mooduli poolt — muudatuse salvestamiseks tühista see."
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2085
 #, elixir-autogen, elixir-format
 msgid "Locked — the owning module controls the lifecycle"
 msgstr "Lukustatud — elutsüklit haldab omanikmoodul"
 
+#: lib/phoenix_kit_entities/web/data_form.ex:1682
+#: lib/phoenix_kit_entities/web/data_form.ex:1895
 #: lib/phoenix_kit_entities/web/entity_form.ex:1950
 #, elixir-autogen, elixir-format
 msgid "Locked — the owning module keys on this slug"

@@ -499,6 +499,9 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   def handle_info({event, _entity_uuid, _data_uuid}, socket)
       when event in [:data_created, :data_updated, :data_deleted] do
+    # A bulk delete queues one event per row; one reload covers them all.
+    Events.flush_data_events()
+
     socket =
       socket
       |> assign(:entities_stats, get_entities_stats())

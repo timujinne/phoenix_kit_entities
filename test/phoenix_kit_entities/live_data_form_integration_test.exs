@@ -718,4 +718,66 @@ defmodule PhoenixKitEntities.LiveDataFormIntegrationTest do
       assert reloaded.data["name"] == "Old"
     end
   end
+
+  describe "managed blueprint write-guard error (MINOR-5)" do
+    # MINOR-5 (2026-09-11 review): `persist_data/3`'s catch-all used to
+    # be `{:error, changeset} -> Logger.error("... #{inspect(changeset.errors)} ...")`,
+    # which would also match `EntityData.update/3`'s `{:error, :locked_key}`
+    # and then raise `KeyError` calling `.errors` on an atom. Unreachable
+    # through this component's ORDINARY payload shape (`%{"data" => ...}`
+    # only, no `slug`/`entity_uuid` key), but reachable through a
+    # legitimately-registered field type `sanitize_values/2` doesn't
+    # special-case (`"decimal"` isn't in `@scalar_value_types` and has no
+    # clause of its own, so it falls to the catch-all that passes the
+    # value through unchanged — see the comment above that clause), so a
+    # field keyed on a real language code can carry a map deep enough to
+    # reach `data[lang]["_slug"]` — the guard `renames_translated_slug?/2`
+    # (see the parent PR's MINOR-6 fix) protects on a managed blueprint.
+    test "a locked_key refusal is logged, not raised, and the record is left untouched" do
+      actor_uuid = Ecto.UUID.generate()
+
+      {:ok, managed_entity} =
+        Entities.create_entity(
+          %{
+            name: "live_data_form_managed_#{System.unique_integer([:positive])}",
+            display_name: "Managed",
+            display_name_plural: "Managed",
+            fields_definition: [
+              %{"type" => "decimal", "key" => "et", "label" => "Estonian overrides"}
+            ],
+            created_by_uuid: actor_uuid,
+            settings: %{"managed_by" => "catalogue", "locked_keys" => []}
+          },
+          on_behalf_of: "catalogue"
+        )
+
+      record =
+        create_record!(managed_entity, %{
+          "_primary_language" => "en",
+          "en" => %{"_title" => "Oak", "_slug" => "oak"},
+          "et" => %{"_title" => "Tamm", "_slug" => "tamm"}
+        })
+
+      socket = socket(record, managed_entity)
+
+      {:noreply, updated_socket} =
+        LiveDataForm.handle_event(
+          "autosave",
+          %{
+            "phoenix_kit_entity_data" => %{
+              "data" => %{"et" => %{"_slug" => "forged-tamm"}}
+            }
+          },
+          socket
+        )
+
+      # Did not raise KeyError, refused the write, and left the record
+      # (and socket) exactly as they were.
+      assert updated_socket.assigns.record == record
+      refute_received {:live_data_form, :saved, _}
+
+      reloaded = EntityData.get!(record.uuid)
+      assert reloaded.data["et"]["_slug"] == "tamm"
+    end
+  end
 end

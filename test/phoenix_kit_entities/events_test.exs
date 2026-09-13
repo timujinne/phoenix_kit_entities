@@ -105,6 +105,26 @@ defmodule PhoenixKitEntities.EventsTest do
     end
   end
 
+  describe "flush_data_events/0" do
+    test "drops queued data lifecycle messages and keeps everything else" do
+      send(self(), {:data_deleted, "entity-1", "data-1"})
+      send(self(), {:data_updated, "entity-1", "data-2"})
+      send(self(), {:data_reordered, "entity-1"})
+      send(self(), {:data_created, "entity-1", "data-3"})
+
+      assert :ok = Events.flush_data_events()
+
+      assert_received {:data_reordered, "entity-1"}
+      refute_received {:data_deleted, _, _}
+      refute_received {:data_updated, _, _}
+      refute_received {:data_created, _, _}
+    end
+
+    test "returns immediately on an empty mailbox" do
+      assert :ok = Events.flush_data_events()
+    end
+  end
+
   describe "entity form collaborative broadcasts" do
     setup do
       Events.subscribe_to_entity_form("form-abc")

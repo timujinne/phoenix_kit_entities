@@ -431,8 +431,13 @@ falling back to the name above and `System.schedulers_online() * 2` — the same
 mechanism core uses, for pointing the suite at a shared instance:
 
 ```bash
-PGDATABASE=migration_test_db PGPOOL=6 mix test
+PGDATABASE=shared_migration_test PGPOOL=6 mix test
 ```
+
+`Test.LiveDatabaseGuard` runs first in `test_helper.exs`, before any
+connection: it refuses a resolved database name that does not end in `_test`
+(optionally followed by digits), and any name listed in the comma-separated
+`PHOENIX_KIT_LIVE_DATABASES`. A name like `migration_test_db` is refused.
 
 The critical wiring is `config :phoenix_kit, repo: PhoenixKitEntities.Test.Repo`
 in `config/test.exs`; without it every call through `PhoenixKit.RepoHelper`
@@ -467,6 +472,8 @@ Support modules under `test/support/`:
   session.
 - `Test.SchemaOwnerGuard` — stamps and checks the `schema_migrations` owner
   marker (see Landmines).
+- `Test.LiveDatabaseGuard` — refuses a test database that is not named like
+  one, or is listed in `PHOENIX_KIT_LIVE_DATABASES`, before any connection.
 
 Excluded tags: `:integration` without a DB, `:requires_phoenix_kit_i18n_api`
 when core lacks `PhoenixKit.Dashboard.Tab.localized_label/1`, and

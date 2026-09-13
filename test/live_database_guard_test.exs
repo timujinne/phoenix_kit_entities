@@ -5,41 +5,70 @@ defmodule PhoenixKitEntities.LiveDatabaseGuardTest do
   reachable from `test_helper.exs`'s real boot sequence, not just that its
   logic is correct in isolation.
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case
 
   alias PhoenixKitEntities.Test.LiveDatabaseGuard
 
-  describe "check!/1" do
-    test "raises for each of this container's known live databases" do
-      for db <- ~w(phoenix_kit_dev decor_3d_print_dev phoenixkit_hello_world_dev) do
-        assert_raise LiveDatabaseGuard.LiveDatabaseError, ~r/#{db}/, fn ->
-          LiveDatabaseGuard.check!(db)
-        end
+  describe "check!/1 — name-shape rule" do
+    test "accepts a name ending in `_test`" do
+      assert :ok = LiveDatabaseGuard.check!("foo_test")
+    end
+
+    test "accepts a name ending in `_test` followed by digits" do
+      assert :ok = LiveDatabaseGuard.check!("foo_test2")
+    end
+
+    test "refuses a name that looks like a dev database" do
+      assert_raise LiveDatabaseGuard.LiveDatabaseError, ~r/foo_dev/, fn ->
+        LiveDatabaseGuard.check!("foo_dev")
+      end
+    end
+
+    test "refuses a bare name with no `_test` suffix at all" do
+      assert_raise LiveDatabaseGuard.LiveDatabaseError, ~r/foo/, fn ->
+        LiveDatabaseGuard.check!("foo")
       end
     end
 
     test "the raised message says WHY, not just which database" do
       assert_raise LiveDatabaseGuard.LiveDatabaseError,
-                   ~r/PGDATABASE leaks into every shell/,
-                   fn -> LiveDatabaseGuard.check!("phoenix_kit_dev") end
+                   ~r/does not look like a test database/,
+                   fn -> LiveDatabaseGuard.check!("foo_dev") end
+    end
+  end
+
+  describe "check!/1 — PHOENIX_KIT_LIVE_DATABASES rule" do
+    setup do
+      previous = System.get_env("PHOENIX_KIT_LIVE_DATABASES")
+
+      on_exit(fn ->
+        case previous do
+          nil -> System.delete_env("PHOENIX_KIT_LIVE_DATABASES")
+          value -> System.put_env("PHOENIX_KIT_LIVE_DATABASES", value)
+        end
+      end)
+
+      :ok
     end
 
-    test "passes an isolated test database name straight through" do
+    test "refuses a listed name even when it ends in `_test`" do
+      System.put_env("PHOENIX_KIT_LIVE_DATABASES", "shared_fleet_test,other_test")
+
+      assert_raise LiveDatabaseGuard.LiveDatabaseError, ~r/shared_fleet_test/, fn ->
+        LiveDatabaseGuard.check!("shared_fleet_test")
+      end
+    end
+
+    test "does not refuse a `_test`-shaped name absent from the list" do
+      System.put_env("PHOENIX_KIT_LIVE_DATABASES", "shared_fleet_test")
+
+      assert :ok = LiveDatabaseGuard.check!("unrelated_test")
+    end
+
+    test "an unset variable refuses nothing extra beyond the shape rule" do
+      System.delete_env("PHOENIX_KIT_LIVE_DATABASES")
+
       assert :ok = LiveDatabaseGuard.check!("phoenix_kit_entities_test")
-    end
-
-    test "a name that merely CONTAINS a known live database's name is not a match" do
-      # Substring matching would be its own bug: a scratch DB deliberately
-      # named to include "phoenix_kit_dev" for debugging purposes (or a
-      # partition suffix landing awkwardly) must not be refused — only an
-      # EXACT match to a known live database is ever the actual live one.
-      assert :ok = LiveDatabaseGuard.check!("not_phoenix_kit_dev_but_looks_like_it")
-      assert :ok = LiveDatabaseGuard.check!("phoenix_kit_dev_backup")
-    end
-
-    test "an empty or unusual name is never mistaken for a live database" do
-      assert :ok = LiveDatabaseGuard.check!("")
-      assert :ok = LiveDatabaseGuard.check!("phoenix_kit_entities_test1")
     end
   end
 end

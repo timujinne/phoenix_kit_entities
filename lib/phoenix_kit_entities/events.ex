@@ -84,6 +84,27 @@ defmodule PhoenixKitEntities.Events do
     broadcast(data_topic(entity_uuid), message)
   end
 
+  @doc """
+  Drops every `:data_created` / `:data_updated` / `:data_deleted` message
+  already queued in the calling process's mailbox.
+
+  For subscribers whose handler ignores the payload and just reloads:
+  `EntityData.bulk_delete/2` broadcasts one `:data_deleted` per row, so
+  without this a 500-row "Delete forever" runs 500 full reloads in every
+  open list. Call it at the top of the handler — the reload that follows
+  already reflects every change the dropped messages announced.
+  """
+  @spec flush_data_events() :: :ok
+  def flush_data_events do
+    receive do
+      {event, _entity_uuid, _data_uuid}
+      when event in [:data_created, :data_updated, :data_deleted] ->
+        flush_data_events()
+    after
+      0 -> :ok
+    end
+  end
+
   ## Collaborative form editing
 
   def broadcast_entity_form_change(form_key, payload, opts \\ []) do
