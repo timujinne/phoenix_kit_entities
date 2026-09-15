@@ -250,6 +250,14 @@ Repo-local aliases:
 - **Rich-text field values are sanitized on the write path** through
   `PhoenixKit.Utils.HtmlSanitizer.sanitize_rich_text_fields/2` (per language
   too) — never store raw user HTML in the `data` JSONB.
+- **Media-picker folder hook** — `config :phoenix_kit_entities,
+  :attachments_parent_folder, {Mod, :fun}` is resolved by
+  `Attachments.scope_folder/2` as `fun(:entity_file, actor_uuid,
+  %{entity_name: name})` (or `/2`) and passed to core's `MediaSelectorModal`
+  as `scope_folder_id`. `Web.DataForm` calls it in `pick_media_field`, never in
+  mount/`handle_params`: host hooks find-or-create folders, and a render must
+  not write them. It rescues and catches `:exit`, degrading to an unscoped
+  picker.
 - **PubSub topic strings live in `Events` as named functions** — never
   hardcode a topic in a caller. Broadcasts go through
   `PhoenixKit.PubSub.Manager` (the host's PubSub), not a module-local server.

@@ -1,3 +1,22 @@
+## 0.4.14 - 2026-09-15
+
+### Added
+
+- **Entity image/video fields can pick and upload into a host-configured
+  folder** (#47). `config :phoenix_kit_entities, :attachments_parent_folder,
+  {Mod, :fun}`, called as `fun(:entity_file, actor_uuid, %{entity_name: name})`
+  (or `fun(:entity_file, actor_uuid)`), scopes the data form's media picker to
+  that folder — both browsing and new uploads — via the existing
+  `scope_folder_id` support in core's `MediaSelectorModal`. The hook runs when
+  the picker opens, not when the form renders, so a host hook that
+  find-or-creates folders never writes on a page view; a raising or exiting
+  hook leaves the picker unscoped. Without a hook configured, behaviour is
+  unchanged.
+
+### Changed
+
+- Dependency lock: `phoenix_kit` 2.23.2, `phoenix` 1.8.14, `tz` 0.28.4.
+
 ## 0.4.13 - 2026-09-13
 
 ### Added

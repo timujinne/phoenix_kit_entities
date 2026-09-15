@@ -242,6 +242,19 @@ The DataNavigator admin LV auto-flips an entity to `"manual"` on the first drag 
 | Media | `file`, `image`, `video` | `file` uploads; `image`/`video` store a media-library reference |
 | Relations | `relation` | Coming soon |
 
+`image`/`video` fields pick through core's media library. A host can scope that
+picker — browsing and new uploads — to a folder per entity type:
+
+```elixir
+config :phoenix_kit_entities, :attachments_parent_folder, {MyApp.Media, :parent_for}
+
+# called when the picker opens (never on render), so it may find-or-create:
+def parent_for(:entity_file, actor_uuid, %{entity_name: name}), do: {:ok, folder_uuid}
+```
+
+Returning anything other than `{:ok, uuid}`, raising or exiting leaves the
+picker unscoped. A `parent_for/2` (`kind, actor_uuid`) is also accepted.
+
 Each field definition is a map with:
 
 ```elixir

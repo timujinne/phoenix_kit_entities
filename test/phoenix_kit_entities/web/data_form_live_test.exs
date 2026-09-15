@@ -65,6 +65,91 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
     end
   end
 
+  describe "attachments scope folder" do
+    @scope_folder "22222222-2222-2222-2222-222222222222"
+
+    # Reports every call to the test process: host hooks find-or-create
+    # folders, so WHEN the form calls this is the contract under test.
+    defmodule ScopeHook do
+      def parent_for(:entity_file, actor_uuid, %{entity_name: name}) do
+        send(
+          Application.fetch_env!(:phoenix_kit_entities, :scope_hook_pid),
+          {:scope_hook, actor_uuid, name}
+        )
+
+        {:ok, "22222222-2222-2222-2222-222222222222"}
+      end
+    end
+
+    setup do
+      Application.put_env(
+        :phoenix_kit_entities,
+        :attachments_parent_folder,
+        {ScopeHook, :parent_for}
+      )
+
+      Application.put_env(:phoenix_kit_entities, :scope_hook_pid, self())
+
+      on_exit(fn ->
+        Application.delete_env(:phoenix_kit_entities, :attachments_parent_folder)
+        Application.delete_env(:phoenix_kit_entities, :scope_hook_pid)
+      end)
+
+      {:ok, media_entity} =
+        Entities.create_entity(
+          %{
+            name: "df_media",
+            display_name: "DF Media",
+            display_name_plural: "DF Media",
+            fields_definition: [
+              %{"type" => "text", "key" => "name", "label" => "Name"},
+              %{"type" => "image", "key" => "photo", "label" => "Photo"}
+            ],
+            status: "published",
+            created_by_uuid: Ecto.UUID.generate()
+          },
+          actor_uuid: Ecto.UUID.generate()
+        )
+
+      {:ok, media_entity: media_entity}
+    end
+
+    test "rendering the form never calls the hook", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
+      {:ok, media_view, _html} = live(conn, new_url(ctx.media_entity))
+
+      # Both the dead render (this process) and the connected one would send.
+      render(view)
+      render(media_view)
+      refute_received {:scope_hook, _, _}
+      assert scope_folder_assign(media_view) == nil
+    end
+
+    test "opening the picker scopes it to the hook's folder for this entity and actor",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, new_url(ctx.media_entity))
+
+      render_click(view, "pick_media_field", %{"key" => "photo", "type" => "image"})
+
+      actor_uuid = ctx.actor_uuid
+      assert_receive {:scope_hook, ^actor_uuid, "df_media"}
+      assert scope_folder_assign(view) == @scope_folder
+    end
+
+    test "an illegal pick does not call the hook", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, new_url(ctx.media_entity))
+
+      render_click(view, "pick_media_field", %{"key" => "name", "type" => "image"})
+
+      refute_received {:scope_hook, _, _}
+      assert scope_folder_assign(view) == nil
+    end
+  end
+
   describe "the URL's blueprint has to be the record's blueprint" do
     test "editing a record under another entity's URL redirects to its own",
          %{conn: conn} = ctx do
@@ -1238,6 +1323,8 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
   # socket rather than the rendered HTML: without the Languages module
   # enabled the LV renders the single-language layout, so the secondary
   # translations never reach the markup even when they're all present.
+  defp scope_folder_assign(view), do: :sys.get_state(view.pid).socket.assigns.scope_folder_uuid
+
   defp changeset_data(view),
     do: :sys.get_state(view.pid).socket.assigns.changeset |> Ecto.Changeset.get_field(:data)
 end

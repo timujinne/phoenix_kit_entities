@@ -20,6 +20,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Slug
   alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitEntities.Attachments
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.Events
   alias PhoenixKitEntities.FormBuilder
@@ -44,7 +45,8 @@ defmodule PhoenixKitEntities.Web.DataForm do
        show_media_selector: false,
        media_pick_target: nil,
        media_filter: :image,
-       media_pick_generation: 0
+       media_pick_generation: 0,
+       scope_folder_uuid: nil
      )}
   end
 
@@ -435,8 +437,17 @@ defmodule PhoenixKitEntities.Web.DataForm do
     legal? = Enum.any?(fields, &(&1["key"] == key and &1["type"] == type))
 
     if legal? and type in ["image", "video"] and socket.assigns.lock_owner? do
+      # Resolved here, not in hydrate_data_form/5: host hooks find-or-create
+      # the folder, and handle_params runs on the dead render too — every
+      # form view (text-only blueprints included) would write folders.
+      current_user = socket.assigns[:current_user]
+
       {:noreply,
        socket
+       |> assign(
+         :scope_folder_uuid,
+         Attachments.scope_folder(socket.assigns.entity.name, current_user && current_user.uuid)
+       )
        |> assign(:media_pick_target, key)
        |> assign(:media_filter, if(type == "video", do: :video, else: :image))
        |> update(:media_pick_generation, &(&1 + 1))
@@ -2073,6 +2084,7 @@ defmodule PhoenixKitEntities.Web.DataForm do
           }
           selected_uuids={[]}
           phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+          scope_folder_id={@scope_folder_uuid}
         />
       </div>
     """
