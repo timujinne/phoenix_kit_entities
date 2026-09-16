@@ -44,6 +44,50 @@ defmodule PhoenixKitEntities.ManagedTest do
     )
   end
 
+  @doc false
+  def allow_delete(_entity), do: :ok
+
+  describe "register_delete_guard/2" do
+    test "concurrent registrations for different owners all land" do
+      # Owners register from their own boot tasks at the same moment (the
+      # catalogue starts two); a shared map's read-modify-write lost one.
+      run = System.unique_integer([:positive])
+      owners = for i <- 1..40, do: "concurrent-owner-#{run}-#{i}"
+
+      on_exit(fn ->
+        Enum.each(owners, &:persistent_term.erase({Managed, :delete_guard, &1}))
+      end)
+
+      parent = self()
+
+      tasks =
+        Enum.map(owners, fn owner ->
+          Task.async(fn ->
+            # Every task is parked here until all forty exist, so the
+            # registrations overlap instead of running one after another.
+            send(parent, {:ready, self()})
+
+            receive do
+              :go -> Managed.register_delete_guard(owner, &__MODULE__.allow_delete/1)
+            end
+          end)
+        end)
+
+      for _ <- tasks, do: assert_receive({:ready, _}, 5_000)
+      Enum.each(tasks, &send(&1.pid, :go))
+      # register_delete_guard/2 returns :persistent_term.put/2's result as is.
+      assert Enum.uniq(Task.await_many(tasks, 10_000)) == [:ok]
+
+      refused =
+        Enum.reject(owners, fn owner ->
+          entity = managed_entity(%{settings: %{"managed_by" => owner}})
+          Managed.validate_delete(entity, on_behalf_of: owner) == :ok
+        end)
+
+      assert refused == []
+    end
+  end
+
   describe "validate_mutation/3" do
     test "unmanaged entities are untouched" do
       assert :ok = Managed.validate_mutation(%{settings: %{}}, %{"name" => "x"})
@@ -498,6 +542,16 @@ defmodule PhoenixKitEntities.ManagedTest do
   end
 
   describe "validate_delete/2" do
+    # Guards outlive the test process; without erasing them, the "fails
+    # closed without a registered guard" pin only holds in a fresh VM (a
+    # --repeat-until-failure run fails it on the second pass).
+    setup do
+      on_exit(fn ->
+        for owner <- ["managed_test_owner", "crashy_owner"],
+            do: :persistent_term.erase({Managed, :delete_guard, owner})
+      end)
+    end
+
     test "generic deletes of managed blueprints are refused" do
       assert {:error, :managed_blueprint} = Managed.validate_delete(managed_entity())
     end

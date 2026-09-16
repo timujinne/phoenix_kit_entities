@@ -81,7 +81,12 @@ defmodule PhoenixKitEntities.Managed do
   value records belongs, not just a mechanical addition.
   """
 
-  @pt_key {__MODULE__, :delete_guards}
+  # One :persistent_term key per owner, not one shared map: owners register
+  # from their own boot tasks, often at the same moment, and a shared map's
+  # read-modify-write let a later registration drop an earlier owner's guard
+  # (every delete of that owner's blueprints then failed closed with
+  # :no_delete_guard). Each owner now writes only its own key.
+  defp guard_key(owner), do: {__MODULE__, :delete_guard, owner}
 
   @doc "True when the entity is managed by another module."
   @spec managed?(struct() | map()) :: boolean()
@@ -268,15 +273,18 @@ defmodule PhoenixKitEntities.Managed do
     :exit, _ -> {:error, :delete_guard_error}
   end
 
-  @doc "Registers (replaces) the owner's delete-approval callback."
+  @doc """
+  Registers (replaces) the owner's delete-approval callback.
+
+  Safe to call from concurrent boot tasks: each owner's guard lives under its
+  own key, so one owner's registration never touches another's.
+  """
   @spec register_delete_guard(String.t(), (struct() -> :ok | {:error, term()})) :: :ok
   def register_delete_guard(owner, fun) when is_binary(owner) and is_function(fun, 1) do
-    guards = :persistent_term.get(@pt_key, %{})
-    :persistent_term.put(@pt_key, Map.put(guards, owner, fun))
-    :ok
+    :persistent_term.put(guard_key(owner), fun)
   end
 
-  defp delete_guard(owner), do: :persistent_term.get(@pt_key, %{}) |> Map.get(owner)
+  defp delete_guard(owner), do: :persistent_term.get(guard_key(owner), nil)
 
   # The owner a settings payload claims via "managed_by", or nil. Ecto's
   # :map type stores whatever key kind it is given and the JSONB encoder

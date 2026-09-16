@@ -1,3 +1,22 @@
+## 0.4.15 - 2026-09-15
+
+### Fixed
+
+- **Delete guards registered by different owners at the same moment all
+  survive** (#48). `Managed.register_delete_guard/2` used to read, update and
+  write back one shared `:persistent_term` map. When two owners registered from
+  separate boot tasks (the catalogue's attribute sets and supplier fields), the
+  later write could drop the earlier owner's guard, and every delete of that
+  owner's blueprints then failed closed with `{:error, :no_delete_guard}`. Each
+  owner's guard now lives under its own key. Re-registering the same owner
+  still replaces its guard, and the public API is unchanged. A node that is
+  hot-upgraded without restarting keeps refusing deletes until its owners
+  register again, which they do at every boot.
+
+### Changed
+
+- Dependency lock: `ex_aws_sqs` (`beamlab_ex_aws_sqs`) 5.0.2.
+
 ## 0.4.14 - 2026-09-15
 
 ### Added
