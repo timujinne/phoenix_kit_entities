@@ -58,6 +58,31 @@ defmodule PhoenixKitEntities.DecimalFieldTest do
       assert Decimal.equal?(value, Decimal.new("12.50"))
     end
 
+    # Regression: a repeated separator on its own is thousands grouping,
+    # not a decimal point — the value must land whole, not padded with
+    # fabricated fraction digits read off the tail of the raw text.
+    test "a thousands-grouped whole number keeps no fractional digits" do
+      assert {:ok, value} = FormBuilder.cast_field(field(), "1,234,567")
+      assert Decimal.to_string(value, :normal) == "1234567"
+
+      # European money-style grouping (dot as grouping separator).
+      assert {:ok, value} = FormBuilder.cast_field(field(), "1.234.567")
+      assert Decimal.to_string(value, :normal) == "1234567"
+
+      assert {:ok, value} = FormBuilder.cast_field(field(), "12,345,678")
+      assert Decimal.to_string(value, :normal) == "12345678"
+    end
+
+    # Mixed grouping + decimal still resolves the LAST separator as the
+    # decimal point and restores exactly its typed fraction length.
+    test "grouping plus a decimal separator restores only the true fraction" do
+      assert {:ok, value} = FormBuilder.cast_field(field(), "1,234,567.50")
+      assert Decimal.to_string(value, :normal) == "1234567.50"
+
+      assert {:ok, value} = FormBuilder.cast_field(field(), "1.234.567,50")
+      assert Decimal.to_string(value, :normal) == "1234567.50"
+    end
+
     test "accepts an integer and an already-cast Decimal" do
       assert {:ok, from_int} = FormBuilder.cast_field(field(), 12)
       assert Decimal.equal?(from_int, Decimal.new(12))
@@ -90,8 +115,8 @@ defmodule PhoenixKitEntities.DecimalFieldTest do
       assert {:ok, nil} = FormBuilder.cast_field(field(), "")
     end
 
-    # `min`/`max` are stored-but-ignored on `number`. On decimal they are
-    # enforced, because the first consumer is money.
+    # `number` enforces the same bound (see `FormBuilderValidationTest`)
+    # since it moved to the same free-text control.
     test "enforces min and max" do
       bounded = field(%{"min" => 0, "max" => "100.00"})
 
@@ -133,6 +158,45 @@ defmodule PhoenixKitEntities.DecimalFieldTest do
     end
   end
 
+  # `decimal_step/1` no longer drives any HTML — `FieldInput` and
+  # `FormBuilder` render decimals through `<.decimal_input>` (a plain text
+  # control; the browser's own step/constraint validation, which this
+  # function used to appease, doesn't apply to it any more). It's kept as
+  # a public `FieldTypes` function for hosts still building a native
+  # `<input type="number">` themselves, so it's tested directly here
+  # instead of through rendered markup.
+  describe "decimal_step/1" do
+    test "step follows the declared scale" do
+      assert FieldTypes.decimal_step(field(%{"scale" => 4})) == "0.0001"
+      # A hand-written definition with no scale stays permissive.
+      assert FieldTypes.decimal_step(field()) == "any"
+      assert FieldTypes.decimal_step(field(%{"scale" => 2})) == "0.01"
+    end
+
+    test "an explicit step that admits the declared scale is honoured" do
+      assert FieldTypes.decimal_step(field(%{"scale" => 2, "step" => "0.01"})) == "0.01"
+      # Finer than the scale is safe too, in string or numeric form.
+      assert FieldTypes.decimal_step(field(%{"scale" => 2, "step" => 0.001})) == "0.001"
+      # No declared scale, no promise to keep.
+      assert FieldTypes.decimal_step(field(%{"step" => "0.5"})) == "0.5"
+    end
+
+    test "a step coarser than the scale falls back to the scale" do
+      assert FieldTypes.decimal_step(field(%{"scale" => 4, "step" => "0.01"})) == "0.0001"
+      assert FieldTypes.decimal_step(field(%{"scale" => 4, "step" => 0.5})) == "0.0001"
+    end
+
+    test "an explicit \"any\" turns stepping off" do
+      assert FieldTypes.decimal_step(field(%{"scale" => 4, "step" => "any"})) == "any"
+    end
+
+    test "junk, zero and negative steps fall back to the scale" do
+      for junk <- ["", " ", "abc", "0", "-0.01", "0,01", "0.0001x", "Infinity", 0, -1] do
+        assert FieldTypes.decimal_step(field(%{"scale" => 4, "step" => junk})) == "0.0001"
+      end
+    end
+  end
+
   describe "rendering" do
     defp render_decimal(f, value) do
       render_component(
@@ -149,61 +213,40 @@ defmodule PhoenixKitEntities.DecimalFieldTest do
       )
     end
 
-    # Without a scale-derived step the browser's own validation rejects
-    # the extra places the type exists to preserve.
-    test "step follows the declared scale" do
-      assert render_decimal(field(%{"scale" => 4}), nil) =~ ~s(step="0.0001")
-      # A hand-written definition with no scale stays permissive.
-      assert render_decimal(field(), nil) =~ ~s(step="any")
-
-      assert render_decimal(field(%{"scale" => 2}), nil) =~ ~s(step="0.01")
+    test "renders a free-text control, not a native number spinner" do
+      html = render_decimal(field(), nil)
+      assert html =~ ~s(inputmode="decimal")
+      refute html =~ ~s(type="number")
     end
 
-    # 2026-08-30 — supplier unit_cost arrows crawled 0.0001 at a time, so
-    # a field may override the step. It is honoured only while it still
-    # admits every value the scale allows.
-    test "an explicit step that admits the declared scale is honoured" do
-      assert render_decimal(field(%{"scale" => 2, "step" => "0.01"}), nil) =~ ~s(step="0.01")
-      # Finer than the scale is safe too, in string or numeric form.
-      assert render_decimal(field(%{"scale" => 2, "step" => 0.001}), nil) =~ ~s(step="0.001")
-      # No declared scale, no promise to keep.
-      assert render_decimal(field(%{"step" => "0.5"}), nil) =~ ~s(step="0.5")
-    end
-
-    # step is not just spinner granularity: the browser validates against
-    # it, and a phx-submit form never reaches LiveView while an input is
-    # step-mismatched. A cent step on a 4-place field would block 12.3456
-    # on submit — the very bug the scale-derived step exists to prevent.
-    test "a step coarser than the scale falls back to the scale" do
-      assert render_decimal(field(%{"scale" => 4, "step" => "0.01"}), nil) =~ ~s(step="0.0001")
-      assert render_decimal(field(%{"scale" => 4, "step" => 0.5}), nil) =~ ~s(step="0.0001")
-    end
-
-    # "any" is the supported way to stop the arrows crawling: no stepping
-    # at all, so they walk by 1 and all four places stay typeable.
-    test "an explicit \"any\" turns stepping off" do
-      assert render_decimal(field(%{"scale" => 4, "step" => "any"}), nil) =~ ~s(step="any")
-    end
-
-    test "junk, zero and negative steps fall back to the scale" do
-      for junk <- ["", " ", "abc", "0", "-0.01", "0,01", "0.0001x", "Infinity", 0, -1] do
-        assert render_decimal(field(%{"scale" => 4, "step" => junk}), nil) =~ ~s(step="0.0001")
-      end
+    # The "number" type shares the same `<.decimal_input>` render clause
+    # in `FieldInput` — pin it directly so a future edit that reverts
+    # only that clause back to a native `type="number"` spinner fails a
+    # test instead of shipping unnoticed.
+    test "the \"number\" type also renders the free-text control" do
+      html = render_decimal(field(%{"type" => "number"}), nil)
+      assert html =~ ~s(inputmode="decimal")
+      refute html =~ ~s(type="number")
     end
 
     test "renders both a Decimal and the stored string without exponent notation" do
+      # Trailing zeros survive — 5.10 is a different price from 5.1 on an
+      # invoice — because the value is pre-formatted by
+      # `FieldTypes.decimal_input_value/1` before it ever reaches
+      # `<.decimal_input>` (which would otherwise normalize a `%Decimal{}`
+      # and drop them).
       assert render_decimal(field(), Decimal.new("5.1000")) =~ ~s(value="5.1000")
       assert render_decimal(field(), "5.1000") =~ ~s(value="5.1000")
 
       # Decimal.to_string/1 defaults to :scientific for small magnitudes;
-      # an <input type="number"> will not accept that.
+      # the control's server-side parser will not accept that.
       html = render_decimal(field(), Decimal.new("0.0001"))
       assert html =~ ~s(value="0.0001")
       refute html =~ "E"
     end
 
     # Float values only come from data written before this type existed.
-    # `to_string/1` renders a small one as "1.0e-7", which the control rejects.
+    # `to_string/1` renders a small one as "1.0e-7", which the parser rejects.
     test "a stored float renders without scientific notation" do
       html = render_decimal(field(), 0.0000001)
 
@@ -211,12 +254,6 @@ defmodule PhoenixKitEntities.DecimalFieldTest do
       # Scoped to the value attribute: the class list contains "bg-base-100",
       # which a bare `=~ "e-"` matches.
       refute html =~ ~r/value="[^"]*e-/
-    end
-
-    test "carries min and max through to the control" do
-      html = render_decimal(field(%{"min" => 0, "max" => 100}), nil)
-      assert html =~ ~s(min="0")
-      assert html =~ ~s(max="100")
     end
   end
 end

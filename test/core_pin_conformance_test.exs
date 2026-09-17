@@ -12,14 +12,15 @@ defmodule PhoenixKitEntities.CorePinConformanceTest do
   outright, with no degraded mode. Nothing else in this repo's own test run
   would notice, which is why the check is a test rather than a convention.
 
-  Core 1.7 is deliberately excluded: core 2.0.0 squashed the migration chain to
-  a V135 floor and this module is verified only against that baseline.
+  The floor is core 2.26.0, the first release shipping `<.decimal_input>` and
+  `PhoenixKit.Utils.Number.parse_decimal/2`, which number/decimal fields call
+  directly — an older core does not compile this package.
   """
 
-  @must_admit ["2.0.0", "2.0.7", "2.1.0", "2.9.4"]
-  @must_reject ["1.7.189", "1.7.236", "1.9.4", "3.0.0"]
+  @must_admit ["2.26.0", "2.26.1", "2.27.0", "2.99.4"]
+  @must_reject ["1.7.236", "2.0.0", "2.25.9", "3.0.0"]
 
-  test "the :phoenix_kit requirement admits every core 2.x and nothing else" do
+  test "the :phoenix_kit requirement admits every core 2.x from the floor and nothing else" do
     requirement = core_requirement()
 
     assert match?({:ok, _parsed}, Version.parse_requirement(requirement)),

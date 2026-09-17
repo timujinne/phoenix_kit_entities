@@ -22,6 +22,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.HeroIcons
+  alias PhoenixKit.Utils.Number
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.Slug
   alias PhoenixKitEntities, as: Entities
@@ -1693,9 +1694,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   defp parse_int(_non_binary, default), do: default
 
   defp mb_to_bytes(mb_string, default_mb) when is_binary(mb_string) do
-    case Float.parse(mb_string) do
-      {mb, _} -> round(mb * 1_048_576)
-      _ -> default_mb * 1_048_576
+    case Number.parse_decimal(mb_string) do
+      {:ok, mb} -> round(Decimal.to_float(mb) * 1_048_576)
+      {:error, _reason} -> default_mb * 1_048_576
     end
   end
 
@@ -3137,13 +3138,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                     <%!-- Max File Size --%>
                     <div class="fieldset">
                       <.label>{gettext("Max File Size (MB)")}</.label>
-                      <input
-                        type="number"
+                      <.decimal_input
                         name="field[max_file_size_mb]"
                         value={bytes_to_mb(@field_form["max_file_size"] || 15_728_640)}
-                        min="1"
-                        max="100"
-                        step="0.1"
                         class="input"
                         placeholder="15"
                         phx-debounce="300"

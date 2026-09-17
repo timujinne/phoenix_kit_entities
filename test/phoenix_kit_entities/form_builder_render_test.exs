@@ -181,7 +181,7 @@ defmodule PhoenixKitEntities.FormBuilderRenderTest do
     test "number" do
       html = render_field("number")
       assert html =~ "input"
-      assert html =~ "type=\"number\""
+      assert html =~ "inputmode=\"decimal\""
     end
 
     test "boolean" do

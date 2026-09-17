@@ -16,6 +16,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.Controllers.EntityFormController
   alias PhoenixKitEntities.EntityData
+  alias PhoenixKitEntities.FormBuilder
 
   @endpoint PhoenixKitEntities.Test.Endpoint
 
@@ -593,6 +594,156 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
 
       result = simple_invoke(conn, params)
       assert result.status in [302, 303]
+    end
+  end
+
+  describe "public submission of a number field" do
+    # SECURITY: the public form endpoint writes straight into
+    # `EntityData.create/2` without ever going through
+    # `FormBuilder.validate_type/2` — `EntityData.changeset/2`'s
+    # `validate_number_field/3` is the ONLY gate a public submission
+    # passes. It used to check the raw text with a dot-only regex, so a
+    # comma-decimal value (the norm in et/ru locales, and what
+    # `<.decimal_input>` on the admin side already accepts) was rejected
+    # here even though it is a perfectly valid number.
+    setup %{actor_uuid: actor_uuid} do
+      {:ok, entity} =
+        Entities.create_entity(
+          %{
+            name: "form_ctrl_number_widget",
+            display_name: "Form Ctrl Number Widget",
+            display_name_plural: "Form Ctrl Number Widgets",
+            status: "published",
+            fields_definition: [
+              %{"type" => "number", "key" => "amount", "label" => "Amount"}
+            ],
+            settings: %{
+              "public_form_enabled" => true,
+              "public_form_fields" => ["amount"]
+            },
+            created_by_uuid: actor_uuid
+          },
+          actor_uuid: actor_uuid
+        )
+
+      {:ok, number_entity: entity}
+    end
+
+    test "a comma-decimal value is stored exactly as the admin path would cast it",
+         %{number_entity: entity} do
+      conn = build_conn(:post, "/")
+
+      params = %{
+        "entity_slug" => entity.name,
+        "phoenix_kit_entity_data" => %{"data" => %{"amount" => "2,5"}}
+      }
+
+      # What `LiveDataForm` (admin path) would have stored for the same
+      # typed input, via `FormBuilder.validate_data/2`.
+      assert {:ok, %{"amount" => expected}} =
+               FormBuilder.validate_data(entity, %{"amount" => "2,5"})
+
+      result = simple_invoke(conn, params)
+      assert result.status in [302, 303]
+
+      assert Phoenix.Flash.get(result.assigns.flash, :info) =~ "submit" or
+               Phoenix.Flash.get(result.assigns.flash, :info) =~ "success"
+
+      [record] = EntityData.list_by_entity(entity.uuid)
+      assert get_in(record.data, ["amount"]) === expected
+    end
+
+    test "garbage text is rejected, no record created", %{number_entity: entity} do
+      conn = build_conn(:post, "/")
+
+      params = %{
+        "entity_slug" => entity.name,
+        "phoenix_kit_entity_data" => %{"data" => %{"amount" => "not-a-number"}}
+      }
+
+      result = simple_invoke(conn, params)
+      assert result.status in [302, 303]
+      assert Phoenix.Flash.get(result.assigns.flash, :error) =~ "error"
+
+      assert EntityData.list_by_entity(entity.uuid) == []
+    end
+  end
+
+  describe "public submission of a decimal field" do
+    # SECURITY: same gap as the "number" type above, for "decimal":
+    # `validate_decimal_field/3` used to check shape only and never
+    # looked at `min`/`max` — an out-of-bounds value that fails to cast in
+    # `normalize_numeric_data/1` is left in its raw, still-shape-valid
+    # form, and this changeset (the only gate a public submission passes)
+    # accepted it anyway.
+    setup %{actor_uuid: actor_uuid} do
+      {:ok, entity} =
+        Entities.create_entity(
+          %{
+            name: "form_ctrl_decimal_widget",
+            display_name: "Form Ctrl Decimal Widget",
+            display_name_plural: "Form Ctrl Decimal Widgets",
+            status: "published",
+            fields_definition: [
+              %{
+                "type" => "decimal",
+                "key" => "price",
+                "label" => "Price",
+                "min" => "0",
+                "max" => "10"
+              }
+            ],
+            settings: %{
+              "public_form_enabled" => true,
+              "public_form_fields" => ["price"]
+            },
+            created_by_uuid: actor_uuid
+          },
+          actor_uuid: actor_uuid
+        )
+
+      {:ok, decimal_entity: entity}
+    end
+
+    test "an in-bounds comma-decimal value is accepted and cast like the admin path",
+         %{decimal_entity: entity} do
+      conn = build_conn(:post, "/")
+
+      params = %{
+        "entity_slug" => entity.name,
+        "phoenix_kit_entity_data" => %{"data" => %{"price" => "5,10"}}
+      }
+
+      assert {:ok, %{"price" => expected}} =
+               FormBuilder.validate_data(entity, %{"price" => "5,10"})
+
+      result = simple_invoke(conn, params)
+      assert result.status in [302, 303]
+
+      assert Phoenix.Flash.get(result.assigns.flash, :info) =~ "submit" or
+               Phoenix.Flash.get(result.assigns.flash, :info) =~ "success"
+
+      [record] = EntityData.list_by_entity(entity.uuid)
+      # A `Decimal` has no native JSON representation, so it round-trips
+      # through JSONB storage as its canonical string form — same for the
+      # admin path (see `EntityData`'s own "decimal" comments) — compare
+      # via that string rather than `%Decimal{}` struct equality.
+      assert get_in(record.data, ["price"]) == Decimal.to_string(expected, :normal)
+    end
+
+    test "an out-of-bounds value is rejected, no record created", %{decimal_entity: entity} do
+      conn = build_conn(:post, "/")
+
+      params = %{
+        "entity_slug" => entity.name,
+        "phoenix_kit_entity_data" => %{"data" => %{"price" => "999"}}
+      }
+
+      result = simple_invoke(conn, params)
+      assert result.status in [302, 303]
+      assert Phoenix.Flash.get(result.assigns.flash, :error) =~ "error"
+
+      assert EntityData.list_by_entity(entity.uuid) == []
     end
   end
 

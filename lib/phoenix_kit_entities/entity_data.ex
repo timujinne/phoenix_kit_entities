@@ -84,10 +84,12 @@ defmodule PhoenixKitEntities.EntityData do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.HtmlSanitizer
   alias PhoenixKit.Utils.Multilang
+  alias PhoenixKit.Utils.Number
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.Events
   alias PhoenixKitEntities.FieldTypes
+  alias PhoenixKitEntities.FormBuilder
   alias PhoenixKitEntities.Managed
   alias PhoenixKitEntities.Mirror.Exporter
   alias PhoenixKitEntities.UrlResolver
@@ -192,6 +194,7 @@ defmodule PhoenixKitEntities.EntityData do
     |> validate_parent_same_entity()
     |> validate_parent_not_descendant()
     |> sanitize_rich_text_data()
+    |> normalize_numeric_data()
     |> validate_data_against_entity()
     # Core's v135 names this FK `fk_entity_data_entity_uuid`, not the
     # `phoenix_kit_entity_data_entity_uuid_fkey` that `foreign_key_constraint/2`
@@ -421,6 +424,87 @@ defmodule PhoenixKitEntities.EntityData do
     end
   end
 
+  @numeric_field_types ~w(number decimal)
+
+  # The public form path (`EntityFormController`) writes straight into this
+  # changeset without ever going through `FormBuilder.validate_type/2` — so
+  # a "number"/"decimal" value it submits ("2,5") would otherwise be stored
+  # as raw typed text, while the SAME input typed into the admin form
+  # (`LiveDataForm` → `FormBuilder.validate_data/2`) is coerced to a float
+  # (`number`) or a scale-preserving `Decimal` (`decimal`) before it ever
+  # reaches this changeset. Two representations for the same field type
+  # would break any downstream code that expects one shape consistently
+  # (arithmetic, filters, sort). `FormBuilder.cast_field/2` is the exact
+  # per-field coercion `validate_data/2` itself uses, so calling it here
+  # reproduces the admin path's result bit-for-bit rather than
+  # re-implementing it a third time.
+  #
+  # Best-effort like `sanitize_rich_text_data/1` above: a value that
+  # doesn't cast (invalid text, or a field already bounds-violating) is
+  # left exactly as submitted, so `validate_number_field/3` /
+  # `validate_decimal_field/3` below still see it and report their own
+  # error — this step only ever changes what a VALID value looks like in
+  # storage, never what counts as valid.
+  defp normalize_numeric_data(changeset) do
+    entity_uuid = get_field(changeset, :entity_uuid)
+    data = get_field(changeset, :data)
+
+    case {entity_uuid, data} do
+      {nil, _} ->
+        changeset
+
+      {_, nil} ->
+        changeset
+
+      {id, data} ->
+        try do
+          entity = Entities.get_entity!(id)
+          fields_definition = entity.fields_definition || []
+
+          normalized_data =
+            if Multilang.multilang_data?(data) do
+              Enum.reduce(data, %{}, fn
+                {"_primary_language", value}, acc ->
+                  Map.put(acc, "_primary_language", value)
+
+                {lang_code, lang_data}, acc when is_map(lang_data) ->
+                  Map.put(acc, lang_code, normalize_numeric_fields(fields_definition, lang_data))
+
+                {key, value}, acc ->
+                  Map.put(acc, key, value)
+              end)
+            else
+              normalize_numeric_fields(fields_definition, data)
+            end
+
+          put_change(changeset, :data, normalized_data)
+        rescue
+          Ecto.NoResultsError -> changeset
+        end
+    end
+  end
+
+  defp normalize_numeric_fields(fields_definition, data) when is_map(data) do
+    Enum.reduce(fields_definition, data, fn field_def, acc ->
+      normalize_numeric_field(acc, field_def)
+    end)
+  end
+
+  defp normalize_numeric_fields(_fields_definition, data), do: data
+
+  defp normalize_numeric_field(data, field_def) do
+    key = field_def["key"]
+
+    if field_def["type"] in @numeric_field_types and Map.has_key?(data, key) do
+      case FormBuilder.cast_field(field_def, data[key]) do
+        {:ok, coerced} -> Map.put(data, key, coerced)
+        {:error, _messages} -> data
+      end
+    else
+      data
+    end
+  end
+
   defp validate_data_against_entity(changeset) do
     entity_uuid = get_field(changeset, :entity_uuid)
     data = get_field(changeset, :data)
@@ -609,45 +693,77 @@ defmodule PhoenixKitEntities.EntityData do
     end
   end
 
+  # The public-form path (`EntityFormController`) writes straight into
+  # `data` without ever going through `FormBuilder.validate_type/2` — this
+  # changeset is the ONLY gate a public submission passes. It must accept
+  # (and bounds-check) exactly what `FormBuilder` accepts, via the same
+  # `Number.parse_decimal/2`, or a comma-decimal locale value ("2,5") that
+  # sails through the admin form gets rejected here — or worse, an
+  # out-of-bounds value that `FormBuilder` would refuse slips straight
+  # into storage from the public path.
   defp validate_number_field(changeset, field_def, value) do
-    if is_number(value) || (is_binary(value) && Regex.match?(~r/^\d+(\.\d+)?$/, value)) do
-      changeset
-    else
-      add_error(
-        changeset,
-        :data,
-        gettext("field '%{label}' must be a number", label: field_def["label"])
-      )
+    case Number.parse_decimal(value, numeric_bounds(field_def)) do
+      {:ok, _decimal} ->
+        changeset
+
+      {:error, _reason} ->
+        add_error(
+          changeset,
+          :data,
+          gettext("field '%{label}' must be a number", label: field_def["label"])
+        )
     end
   end
 
-  # The shape guard for exact numerics. A `%Decimal{}` is what a fresh
-  # cast produces; a canonical string is what comes back out of JSONB,
-  # since JSON has no decimal and serialising through a float would undo
-  # the whole point of the type.
+  # The shape AND bounds gate for exact numerics. A `%Decimal{}` is what a
+  # fresh cast produces; a canonical string is what comes back out of
+  # JSONB, since JSON has no decimal and serialising through a float would
+  # undo the whole point of the type — `Number.parse_decimal/2` accepts
+  # both, plus a hand-written `" 5,10 "` (comma or dot, trimmed), matching
+  # what `FormBuilder.cast_field/2` accepts on the admin path.
+  #
+  # Same reasoning as `validate_number_field/3` above: the public form
+  # path never goes through `FormBuilder.validate_type/2`, so this
+  # changeset is the ONLY gate a public submission passes. It used to
+  # check shape only (`decimal_shaped?/1`, since removed) and never
+  # looked at `min`/`max` — an out-of-bounds value that fails to cast in
+  # `normalize_numeric_data/1` (see `FormBuilder.apply_decimal_bounds/2`)
+  # is left in its raw, still-shape-valid form, and this being the final
+  # word meant it sailed straight into storage.
   defp validate_decimal_field(changeset, field_def, value) do
-    if decimal_shaped?(value) do
-      changeset
-    else
-      add_error(
-        changeset,
-        :data,
-        gettext("field '%{label}' must be a number", label: field_def["label"])
-      )
+    case Number.parse_decimal(value, numeric_bounds(field_def)) do
+      {:ok, _decimal} ->
+        changeset
+
+      {:error, _reason} ->
+        add_error(
+          changeset,
+          :data,
+          gettext("field '%{label}' must be a number", label: field_def["label"])
+        )
     end
   end
 
-  defp decimal_shaped?(%Decimal{}), do: true
-  defp decimal_shaped?(value) when is_number(value), do: true
-
-  # Trimmed before parsing, to match what `FormBuilder.cast_field/2` accepts.
-  # Without this a hand-written `" 5.1 "` casts fine on the way in and is then
-  # refused by this guard on re-save.
-  defp decimal_shaped?(value) when is_binary(value) do
-    match?({_decimal, ""}, value |> String.trim() |> Decimal.parse())
+  # `Number.parse_decimal/2` RAISES on a `:min`/`:max` it cannot read, but
+  # bounds come from a field definition (mirror import, API, hand-edited
+  # JSON), where `""` or a typo is data, not a programming error. Resolve
+  # them the way `FormBuilder`'s `compare_bound/2` does — an unreadable
+  # bound (NaN included, which `Decimal` refuses to compare) is ignored —
+  # so a bad definition cannot turn every save of the record into a 500.
+  defp numeric_bounds(field_def) do
+    [min: numeric_bound(field_def["min"]), max: numeric_bound(field_def["max"])]
   end
 
-  defp decimal_shaped?(_value), do: false
+  defp numeric_bound(bound) when is_number(bound), do: bound
+
+  defp numeric_bound(bound) when is_binary(bound) do
+    case bound |> String.trim() |> Decimal.parse() do
+      {%Decimal{} = decimal, ""} -> if Decimal.nan?(decimal), do: nil, else: decimal
+      _ -> nil
+    end
+  end
+
+  defp numeric_bound(_bound), do: nil
 
   defp validate_boolean_field(changeset, field_def, value) do
     if is_boolean(value) do

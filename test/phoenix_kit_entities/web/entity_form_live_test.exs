@@ -274,6 +274,57 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       assert render(view) =~ "Update Entity"
     end
 
+    test "file field's max size (MB) accepts a comma decimal, same as the dot form",
+         %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
+
+      render_hook(view, "add_field", %{})
+
+      render_hook(view, "save_field", %{
+        "field" => %{
+          "type" => "file",
+          "key" => "attachment",
+          "label" => "Attachment",
+          "max_file_size_mb" => "2,5"
+        }
+      })
+
+      # Field is index 1 — index 0 is the "name" field from the fixture entity.
+      html = render_hook(view, "edit_field", %{"index" => "1"})
+      assert html =~ ~s(name="field[max_file_size_mb]")
+      assert html =~ ~s(value="2.5")
+
+      render_hook(view, "add_field", %{})
+
+      render_hook(view, "save_field", %{
+        "field" => %{
+          "type" => "file",
+          "key" => "attachment_dot",
+          "label" => "Attachment Dot",
+          "max_file_size_mb" => "2.5"
+        }
+      })
+
+      html = render_hook(view, "edit_field", %{"index" => "2"})
+      assert html =~ ~s(value="2.5")
+
+      render_hook(view, "add_field", %{})
+
+      render_hook(view, "save_field", %{
+        "field" => %{
+          "type" => "file",
+          "key" => "attachment_garbage",
+          "label" => "Attachment Garbage",
+          "max_file_size_mb" => "not-a-number"
+        }
+      })
+
+      # Garbage falls back to the 15 MB default, same as before.
+      html = render_hook(view, "edit_field", %{"index" => "3"})
+      assert html =~ ~s(value="15")
+    end
+
     test "allow_other toggle persists on a radio field and pre-fills on re-edit",
          %{conn: conn} = ctx do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))

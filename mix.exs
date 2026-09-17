@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.4.15"
+  @version "0.4.16"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do
@@ -120,15 +120,15 @@ defmodule PhoenixKitEntities.MixProject do
       # now-`@deprecated` Scope.admin?/1) — an older core has no such function,
       # so this is an UndefinedFunctionError at runtime, not a warning.
       #
-      # Kept a two-segment `~> 2.0` on purpose (see
-      # test/core_pin_conformance_test.exs): PhoenixKitEntities.Migrations
-      # (lib/phoenix_kit_entities/migrations.ex) adopts core's V169 shape —
-      # `phoenix_kit_entity_data.created_by_uuid` nullable, first shipped in
-      # phoenix_kit 2.4.0 — but narrowing this to `~> 2.4` would make
-      # `mix deps.get` unsolvable for every host pairing this module with a
-      # newer core minor. The V169 floor is documented on the migration
-      # module's moduledoc instead.
-      pk_dep(:phoenix_kit, "~> 2.0"),
+      # Floor 2.26: number/decimal fields render core's `<.decimal_input>`
+      # (`PhoenixKitWeb.Components.Core.DecimalInput`) and parse through
+      # `PhoenixKit.Utils.Number.parse_decimal/2`, both first shipped in
+      # phoenix_kit 2.26.0 — an older core fails to COMPILE this package.
+      #
+      # Keep it TWO-segment (see test/core_pin_conformance_test.exs): a
+      # three-segment `~> 2.26.x` means `< 2.27.0` and makes `mix deps.get`
+      # unsolvable for every host pairing this module with a newer core minor.
+      pk_dep(:phoenix_kit, "~> 2.26"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

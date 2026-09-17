@@ -72,6 +72,7 @@ defmodule PhoenixKitEntities.Components.FieldInput do
   alias PhoenixKitEntities.FieldTypes
 
   alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKit.Utils.Number
 
   @doc """
   Renders the control for one field definition. See the moduledoc for
@@ -185,51 +186,24 @@ defmodule PhoenixKitEntities.Components.FieldInput do
     """
   end
 
+  # Number/decimal — bounds (`min`/`max`) are enforced server-side by
+  # `FormBuilder.cast_field/2`, not through browser constraint
+  # validation (that's the whole reason this renders free text, not
+  # `<input type="number">`). A bare `<input>`, not `<.decimal_input>`:
+  # that component wraps its control in a `<div phx-feedback-for>`,
+  # which would nest the actual control one level deeper than every
+  # other type in this file — breaking, for these two types only, the
+  # moduledoc's `class="join-item"` example (a `.join` container needs
+  # the input as a direct child, not a div around it).
   defp render_input(%{type: "number"} = assigns) do
-    ~H"""
-    <input
-      type="number"
-      id={@input_id}
-      name={@name}
-      value={@value}
-      form={@form}
-      min={@field["min"]}
-      max={@field["max"]}
-      step={@field["step"] || "any"}
-      placeholder={@field["placeholder"]}
-      disabled={@disabled}
-      phx-debounce="blur"
-      class={["input input-bordered bg-base-100", size_class("input", @size), @class]}
-    />
-    """
+    assigns = assign(assigns, :text_value, Number.format_decimal(assigns.value))
+    render_decimal_text_input(assigns)
   end
 
-  # Decimal — `step` follows the declared scale, or the browser rejects
-  # the extra places this type exists to preserve. The value renders
-  # through the shared helper because it arrives either as a %Decimal{}
-  # (just cast) or as the canonical string (back out of JSONB).
   defp render_input(%{type: "decimal"} = assigns) do
-    assigns =
-      assigns
-      |> assign(:decimal_value, FieldTypes.decimal_input_value(assigns.value))
-      |> assign(:decimal_step, FieldTypes.decimal_step(assigns.field))
-
-    ~H"""
-    <input
-      type="number"
-      id={@input_id}
-      name={@name}
-      value={@decimal_value}
-      form={@form}
-      min={@field["min"]}
-      max={@field["max"]}
-      step={@decimal_step}
-      placeholder={@field["placeholder"]}
-      disabled={@disabled}
-      phx-debounce="blur"
-      class={["input input-bordered bg-base-100", size_class("input", @size), @class]}
-    />
-    """
+    decimal_value = FieldTypes.decimal_input_value(assigns.value)
+    assigns = assign(assigns, :text_value, Number.format_decimal(decimal_value))
+    render_decimal_text_input(assigns)
   end
 
   defp render_input(%{type: "date"} = assigns) do
@@ -399,6 +373,26 @@ defmodule PhoenixKitEntities.Components.FieldInput do
     <span id={@input_id} class="text-xs text-base-content/40 italic">
       {gettext("Unsupported field type: %{type}", type: @type)}
     </span>
+    """
+  end
+
+  # Shared markup for the "number"/"decimal" `render_input/1` clauses
+  # above.
+  defp render_decimal_text_input(assigns) do
+    ~H"""
+    <input
+      type="text"
+      inputmode="decimal"
+      autocomplete="off"
+      id={@input_id}
+      name={@name}
+      value={@text_value}
+      form={@form}
+      placeholder={@field["placeholder"]}
+      disabled={@disabled}
+      phx-debounce="blur"
+      class={["input input-bordered bg-base-100", size_class("input", @size), @class]}
+    />
     """
   end
 

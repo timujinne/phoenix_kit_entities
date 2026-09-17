@@ -218,6 +218,7 @@ defmodule PhoenixKitEntities.Components.FieldInputTest do
   describe "FormBuilder.cast_field/2" do
     test "coerces per type, blank clears, required still enforced" do
       assert {:ok, 12.5} = FormBuilder.cast_field(%{"type" => "number", "key" => "p"}, "12.5")
+      assert {:ok, 12.5} = FormBuilder.cast_field(%{"type" => "number", "key" => "p"}, "12,5")
       assert {:error, _} = FormBuilder.cast_field(%{"type" => "number", "key" => "p"}, "12abc")
       assert {:ok, nil} = FormBuilder.cast_field(%{"type" => "number", "key" => "p"}, "")
 

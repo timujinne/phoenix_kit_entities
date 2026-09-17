@@ -124,12 +124,13 @@ defmodule PhoenixKitEntities.FieldTypes do
         "step" => 1
       }
     },
-    # Exact numeric. `number` casts through Float.parse/1, which is fine
-    # for counts and measurements but silently rounds money — 0.1 + 0.2
-    # is the classic. This type carries the value as a Decimal end to
-    # end: cast returns %Decimal{}, storage is the canonical string form
-    # (JSON has no decimal, and a float round-trip would undo the point),
-    # and reads hand back a Decimal again.
+    # Exact numeric. `number` casts through `Number.parse_decimal/2` but
+    # still hands back a float, which is fine for counts and measurements
+    # but silently rounds money — 0.1 + 0.2 is the classic. This type
+    # carries the value as a Decimal end to end: cast returns %Decimal{},
+    # storage is the canonical string form (JSON has no decimal, and a
+    # float round-trip would undo the point), and reads hand back a
+    # Decimal again.
     "decimal" => %{
       name: "decimal",
       label: "Decimal",

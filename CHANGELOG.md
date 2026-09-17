@@ -1,3 +1,33 @@
+## 0.4.16 - 2026-09-16
+
+### Changed
+
+- **Number and decimal fields use core's `<.decimal_input>`** (#49). They now
+  render a text control with `inputmode="decimal"` in both the full form and
+  `FieldInput`, not `<input type="number">`, and parse input with
+  `PhoenixKit.Utils.Number.parse_decimal/2`. A comma or a dot works as the
+  decimal point, 3-digit grouping is accepted, and the browser's `step` check
+  no longer silently blocks a submit. A `decimal` field keeps the scale that
+  was typed (`5,10` is stored as `5.10`).
+- **`min`/`max` are enforced on the server for `number` fields** (#49). The
+  browser used to be the only check. The public form endpoint now stores
+  number/decimal values in the same shape as the admin form (a float or a
+  `Decimal`) and applies the same bounds.
+- Values with a magnitude of 10¹² or more, or text longer than 64 bytes, are
+  now rejected in number/decimal fields (core's `parse_decimal/2` guard). A
+  record that already stores a larger value fails validation on its next save.
+  Use a `text` field for values like millisecond timestamps.
+- **Requires `phoenix_kit` 2.26 or later** (`~> 2.26`). Earlier cores lack
+  `<.decimal_input>` and `Number.parse_decimal/2`.
+- Dependency lock: `phoenix_kit` 2.26.1, `phoenix_live_view` 1.2.12,
+  `phoenix_kit_templates` 0.1.2, `swoosh` 1.28.1.
+
+### Fixed
+
+- A field definition with an unreadable `min`/`max` (`""`, a typo, `"NaN"`)
+  no longer crashes saves of that entity's records. The bound is ignored, as
+  the form builder already documented.
+
 ## 0.4.15 - 2026-09-15
 
 ### Fixed

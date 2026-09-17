@@ -10,7 +10,8 @@ entity are stored as *entity data* rows sharing one JSONB shape. It implements
 the `PhoenixKit.Module` behaviour, so a host app gets the admin UI, settings,
 permissions, migrations and routes by adding the dependency — no wiring.
 
-- **Depends on:** `phoenix_kit` `~> 2.0` (Hex), `phoenix_live_view` `~> 1.0`,
+- **Depends on:** `phoenix_kit` `~> 2.26` (Hex; 2.26 is the first core with
+  `<.decimal_input>` and `Number.parse_decimal/2`), `phoenix_live_view` `~> 1.0`,
   `gettext` `~> 1.0`. `lazy_html` is test-only (`Phoenix.LiveViewTest`'s HTML
   parser). No sibling `phoenix_kit_*` deps.
 - **Consumed by:** `phoenix_kit_catalogue` (attribute sets are MANAGED
@@ -277,10 +278,12 @@ Repo-local aliases:
   the OLD translation with no runtime error. The catalogues here are edited by
   hand for that reason; `gettext_catalogue_test.exs` fails the build on any
   fuzzy entry.
-- Narrowing the core pin to a three-segment `~> 2.0.x` breaks CONSUMERS only
-  (`~> 2.0.x` excludes every 2.1+ core, so a host wanting both this module and
-  a newer core gets an unsolvable dep set). `core_pin_conformance_test.exs`
-  guards it; nothing else in this repo would notice.
+- Narrowing the core pin to a three-segment `~> 2.26.x` breaks CONSUMERS only
+  (`~> 2.26.x` excludes every 2.27+ core, so a host wanting both this module
+  and a newer core gets an unsolvable dep set). Raising the two-segment floor
+  is fine, and required whenever code starts calling a newer core API.
+  `core_pin_conformance_test.exs` guards it; nothing else in this repo would
+  notice.
 - `Web.DataNavigator` auto-flips an entity's `sort_mode` to `"manual"` on the
   first drag and only logs a `Logger.warning` — a setting changed by a gesture,
   so don't treat a "manual" mode nobody set as corruption.
@@ -428,7 +431,7 @@ DB-backed tests are tagged `:integration` (auto-applied by `DataCase` and
 `LiveCase`) and auto-exclude when the database is unreachable —
 `test_helper.exs` runs one bounded, classified connection attempt through
 core's `PhoenixKit.TestSupport.PostgresPreflight` when the running core ships
-it (the `~> 2.0` floor predates it), and otherwise falls back to starting the
+it (older cores predate it), and otherwise falls back to starting the
 repo and catching the failure. A second probe against the `postgres`
 maintenance database gates the `:maintenance_db` tag: the `SchemaOwnerGuard`
 tests create and drop scratch databases, so a role that can reach the test
