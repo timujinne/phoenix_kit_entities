@@ -32,6 +32,8 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   alias PhoenixKitEntities.Mirror.Storage
   alias PhoenixKitEntities.Presence
   alias PhoenixKitEntities.PresenceHelpers
+  alias PhoenixKitEntities.Relations
+  alias PhoenixKitWeb.Actor
 
   @impl true
   def mount(_params, _session, socket) do
@@ -57,7 +59,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     socket =
       socket
       |> drop_self_referer(uri)
-      |> hydrate_entity_form(entity, changeset, gettext("Edit Entity"))
+      |> hydrate_entity_form(entity, changeset, gettext("Edit"))
 
     {:noreply, socket}
   end
@@ -70,9 +72,23 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     socket =
       socket
       |> drop_self_referer(uri)
-      |> hydrate_entity_form(entity, changeset, gettext("New Entity"))
+      |> hydrate_entity_form(entity, changeset, gettext("New entity"))
 
     {:noreply, socket}
+  end
+
+  # The header trail above the form: `Entities / <entity> / Edit`. An entity
+  # has no show page of its own — its records page stands in for it, so the
+  # crumb links there. A new entity is not a level yet.
+  defp entity_crumbs(%{uuid: nil}), do: []
+
+  defp entity_crumbs(entity) do
+    [
+      %{
+        label: entity.display_name_plural || entity.display_name,
+        path: Routes.path("/admin/entities/#{entity.name}/data")
+      }
+    ]
   end
 
   # Pull `_live_referer` out of the connect params, parse the path, and
@@ -178,12 +194,18 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       |> assign(:page_subtitle, gettext("Define your custom content type with dynamic fields"))
       |> assign(:page_section, gettext("Entities"))
       |> assign(:page_section_path, Routes.path("/admin/entities"))
+      |> assign(:page_crumbs, entity_crumbs(entity))
       |> assign(:project_title, project_title)
       |> assign(:entity, entity)
       |> assign(:changeset, changeset)
       |> assign(:current_user, current_user)
       |> assign(:fields, current_fields)
       |> assign(:field_types, FieldTypes.for_picker())
+      # Every entity a relation field may point at (this one included — a
+      # record can link to its own kind), and whether new relation fields
+      # may be added at all (`entities_allow_relations`).
+      |> assign(:relation_targets, Entities.list_entities())
+      |> assign(:relations_allowed?, Relations.allowed?())
       |> assign(:show_field_form, false)
       |> assign(:editing_field_index, nil)
       |> assign(:field_form, new_field_form())
@@ -200,7 +222,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       |> assign(:has_unsaved_changes, false)
       |> assign(:mirror_path, Storage.root_path())
       |> assign(:sort_mode, Entities.get_sort_mode(entity))
-      |> mount_multilang()
+      # An edit opens on the language being viewed; a new entity starts on
+      # the main language, which holds its required fields.
+      |> mount_multilang(open_on: if(entity.uuid, do: :viewing_language, else: :primary))
 
     hydrate_entity_presence(socket, form_key, entity, current_user)
   end
@@ -501,9 +525,13 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       merged_params = Map.put(merged_params, "options", sanitized_options)
 
       # Process file-specific fields
-      merged_params = process_file_upload_settings(merged_params)
+      merged_params =
+        merged_params
+        |> process_file_upload_settings()
+        |> process_relation_settings()
 
       with :ok <- validate_field_requirements(merged_params, sanitized_options),
+           :ok <- validate_relation_allowed(merged_params, socket),
            :ok <-
              validate_unique_field_key(
                merged_params,
@@ -1409,17 +1437,8 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     |> assign(:field_error, nil)
   end
 
-  # Threads the current user UUID through to context functions that
-  # accept `actor_uuid:` opts.
-  defp actor_opts(socket) do
-    case socket.assigns[:phoenix_kit_current_scope] do
-      %{user: %{uuid: uuid}} -> [actor_uuid: uuid]
-      _ -> []
-    end
-  end
-
   defp save_entity(socket, entity_params) do
-    opts = actor_opts(socket)
+    opts = Actor.opts(socket)
 
     if socket.assigns.entity.uuid do
       # Reload entity from database to ensure Ecto detects all changes
@@ -1632,6 +1651,52 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         "type" -> Map.get(form, :type)
         _ -> nil
       end
+  end
+
+  # A relation's "allow multiple" arrives as the checkbox's "true"/"false";
+  # store a boolean. Other types carry neither relation key.
+  defp process_relation_settings(%{"type" => "relation"} = params),
+    do: Map.put(params, "allow_multiple", params["allow_multiple"] in [true, "true"])
+
+  defp process_relation_settings(params),
+    do: Map.drop(params, ["target_entity", "allow_multiple"])
+
+  # `entities_allow_relations` off: no NEW relation field. Editing one the
+  # entity already has (same key, already a relation) is still fine.
+  defp validate_relation_allowed(%{"type" => "relation"} = params, socket) do
+    existing =
+      case socket.assigns.editing_field_index do
+        nil -> nil
+        index -> Enum.at(socket.assigns.fields, index)
+      end
+
+    key = params["key"]
+
+    if socket.assigns.relations_allowed? or
+         match?(%{"type" => "relation", "key" => ^key}, existing),
+       do: :ok,
+       else: {:error, :relations_not_allowed}
+  end
+
+  defp validate_relation_allowed(_params, _socket), do: :ok
+
+  # The field list's one-line summary of a relation: where it points.
+  defp relation_summary(field, targets) do
+    target =
+      Enum.find(
+        targets,
+        &(&1.uuid == field["target_entity"] or &1.name == field["target_entity"])
+      )
+
+    name =
+      case target do
+        nil -> gettext("missing entity")
+        target -> target.display_name_plural || target.display_name
+      end
+
+    if Relations.multiple?(field),
+      do: gettext("Links to many %{entity}", entity: name),
+      else: gettext("Links to one of %{entity}", entity: name)
   end
 
   # File upload settings processing
@@ -2249,6 +2314,11 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                           </div>
                         </div>
 
+                        <div :if={field["type"] == "relation"} class="mt-2 text-sm text-base-content/60">
+                          <.icon name="hero-link" class="w-4 h-4 inline" />
+                          {relation_summary(field, @relation_targets)}
+                        </div>
+
                         <%!-- Field Options Preview --%>
                         <%= if requires_options?(field["type"]) && field["options"] do %>
                           <div class="mt-2 text-sm text-base-content/60">
@@ -2377,7 +2447,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                       </p>
 
                       <div class="space-y-2 max-h-64 overflow-y-auto border border-base-300 rounded-lg p-3">
-                        <%= for field <- @fields, field["type"] != "heading" do %>
+                        <%= for field <- @fields, field["type"] not in ["heading", "relation"] do %>
                           <label class="flex items-center gap-3 p-2 hover:bg-base-200 rounded cursor-pointer">
                             <input
                               type="checkbox"
@@ -3023,7 +3093,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                     >
                       <%= for {category_key, _label} <- PhoenixKitEntities.FieldTypes.category_list() do %>
                         <optgroup label={field_category_label(category_key)}>
-                          <%= for type <- PhoenixKitEntities.FieldTypes.by_category(category_key) do %>
+                          <%= for type <- PhoenixKitEntities.FieldTypes.by_category(category_key),
+                                  type.name != "relation" or @relations_allowed? or
+                                    @field_form["type"] == "relation" do %>
                             <option value={type.name} selected={@field_form["type"] == type.name}>
                               {field_type_label(type.name)}
                             </option>
@@ -3095,7 +3167,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                       </.label>
                     </div>
 
-                    <div>
+                    <div :if={@field_form["type"] != "relation"}>
                       <.label>{gettext("Default Value (Optional)")}</.label>
                       <input
                         type="text"
@@ -3170,6 +3242,44 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                         </span>
                       </.label>
                     </div>
+                  </div>
+                <% end %>
+
+                <%!-- Relation: which entity it links to, and how many --%>
+                <%= if @field_form["type"] == "relation" do %>
+                  <div class="space-y-4 p-4 bg-base-200 rounded-lg">
+                    <div>
+                      <.label>{gettext("Links to")} *</.label>
+                      <label class="select w-full">
+                        <select name="field[target_entity]">
+                          <option value="">{gettext("Choose an entity…")}</option>
+                          <option
+                            :for={target <- @relation_targets}
+                            value={target.uuid}
+                            selected={@field_form["target_entity"] in [target.uuid, target.name]}
+                          >
+                            {target.display_name_plural || target.display_name}
+                          </option>
+                        </select>
+                      </label>
+                      <.label class="label">
+                        <span class="fieldset-label">
+                          {gettext("Each record picks from the chosen entity's records.")}
+                        </span>
+                      </.label>
+                    </div>
+
+                    <.label class="label cursor-pointer justify-start gap-2">
+                      <input type="hidden" name="field[allow_multiple]" value="false" />
+                      <input
+                        type="checkbox"
+                        name="field[allow_multiple]"
+                        class="toggle toggle-primary toggle-sm"
+                        value="true"
+                        checked={Relations.multiple?(@field_form)}
+                      />
+                      <span class="fieldset-legend">{gettext("Allow linking to several records")}</span>
+                    </.label>
                   </div>
                 <% end %>
 

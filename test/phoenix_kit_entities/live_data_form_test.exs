@@ -654,21 +654,35 @@ defmodule PhoenixKitEntities.LiveDataFormTest do
       assert LiveDataForm.sanitize_values(%{"color" => %{"evil" => "map"}}, fields) == %{}
     end
 
-    test "any value submitted under a file/relation field's key is dropped" do
-      # These two render a placeholder, never a submittable input, so a
-      # value arriving under their key can only be crafted. `file` in
-      # particular used to fall through the catch-all into `record.data`,
-      # where both render surfaces index or stringify it —
-      # `FormBuilder.build_field/3`'s `file["filename"]` and this module's
-      # `readonly_value/1` — which is the same stored-DoS the scalar types
-      # above are protected from.
-      for type <- ~w(file relation) do
-        fields = [%{"type" => type, "key" => "attachment", "label" => "Attachment"}]
+    test "any value submitted under a file field's key is dropped" do
+      # `file` renders a placeholder, never a submittable input, so a
+      # value arriving under its key can only be crafted. It used to fall
+      # through the catch-all into `record.data`, where both render
+      # surfaces index or stringify it — `FormBuilder.build_field/3`'s
+      # `file["filename"]` and this module's `readonly_value/1` — which is
+      # the same stored-DoS the scalar types above are protected from.
+      fields = [%{"type" => "file", "key" => "attachment", "label" => "Attachment"}]
 
-        assert LiveDataForm.sanitize_values(%{"attachment" => ["a.pdf"]}, fields) == %{}
-        assert LiveDataForm.sanitize_values(%{"attachment" => %{"evil" => "map"}}, fields) == %{}
-        assert LiveDataForm.sanitize_values(%{"attachment" => "a.pdf"}, fields) == %{}
-      end
+      assert LiveDataForm.sanitize_values(%{"attachment" => ["a.pdf"]}, fields) == %{}
+      assert LiveDataForm.sanitize_values(%{"attachment" => %{"evil" => "map"}}, fields) == %{}
+      assert LiveDataForm.sanitize_values(%{"attachment" => "a.pdf"}, fields) == %{}
+    end
+
+    test "relation values pass as a string or a list of strings; other shapes drop" do
+      # What the picker's inputs submit. Whether the uuids are live records
+      # of the target is EntityData.changeset/2's check, not this gate's.
+      fields = [%{"type" => "relation", "key" => "grades", "label" => "Grades"}]
+      uuid = Ecto.UUID.generate()
+
+      assert LiveDataForm.sanitize_values(%{"grades" => uuid}, fields) == %{"grades" => uuid}
+
+      assert LiveDataForm.sanitize_values(%{"grades" => ["", uuid]}, fields) ==
+               %{"grades" => ["", uuid]}
+
+      assert LiveDataForm.sanitize_values(%{"grades" => nil}, fields) == %{"grades" => nil}
+      assert LiveDataForm.sanitize_values(%{"grades" => %{"evil" => "map"}}, fields) == %{}
+      assert LiveDataForm.sanitize_values(%{"grades" => [%{"evil" => "map"}]}, fields) == %{}
+      assert LiveDataForm.sanitize_values(%{"grades" => 42}, fields) == %{}
     end
 
     test "image/video values ride the scalar path: strings pass, shapes drop" do

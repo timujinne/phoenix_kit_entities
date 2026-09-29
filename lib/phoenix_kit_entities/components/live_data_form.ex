@@ -12,6 +12,10 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
     DB-free, and so is the initial `:edit` render as long as `lang` is
     `nil` (a non-nil `lang` makes `FormBuilder.build_fields/3` do one
     cacheable `Multilang`/settings read; see the `lang` attribute below).
+    The one exception is an entity with `relation` fields: their targets'
+    records are read (titles for `:readonly`, the picker's options for
+    `:edit` — one query per target plus one for titles), and read again
+    only when the record, the mode or `lang` changes.
     When `:entity` isn't preloaded, it's instead loaded via
     `PhoenixKitEntities.get_entity!/2` (one query per `update/2`, unless
     the entity was already resolved for the same `entity_uuid` on a
@@ -182,6 +186,7 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.FormBuilder
+  alias PhoenixKitEntities.Relations
 
   # Field types whose stored value must be a single JSON scalar (or
   # absent) — see `sanitize_values/2` below. `number` and `boolean` are
@@ -210,10 +215,40 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
       |> assign_new(:actor, fn -> nil end)
       |> assign_new(:submit_label, fn -> nil end)
       |> assign_new(:persist_statuses, fn -> nil end)
+      |> assign_new(:pending_relations, fn -> %{} end)
       |> assign(:entity, entity)
       |> assign_form()
+      |> assign_relations()
 
     {:ok, socket}
+  end
+
+  # Relation fields need their targets' records (the picker's options, the
+  # linked records' titles). Loaded only when the entity has one, and only
+  # again when the record, its entity or the mode changes — `update/2` runs
+  # on every parent render. See `Relations.picker_contexts/3`.
+  defp assign_relations(socket) do
+    %{entity: entity, record: record} = socket.assigns
+
+    cache_key =
+      {entity.uuid, record.uuid, record.data, socket.assigns[:mode], socket.assigns.lang}
+
+    cond do
+      Relations.relation_fields(entity) == [] ->
+        assign(socket, relation_ctx: %{}, relation_labels: %{}, relation_key: nil)
+
+      socket.assigns[:relation_key] == cache_key ->
+        socket
+
+      socket.assigns[:mode] == :edit ->
+        ctx = Relations.picker_contexts(entity, record.data, lang: socket.assigns.lang)
+        labels = ctx |> Map.values() |> Enum.map(& &1.labels) |> Enum.reduce(%{}, &Map.merge/2)
+        assign(socket, relation_ctx: ctx, relation_labels: labels, relation_key: cache_key)
+
+      true ->
+        labels = Relations.labels([{entity, record.data}], lang: socket.assigns.lang)
+        assign(socket, relation_ctx: %{}, relation_labels: labels, relation_key: cache_key)
+    end
   end
 
   # Reuses the preloaded association when the caller already loaded it,
@@ -238,8 +273,24 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # validation), all of which hit the database. This component only needs
   # a display/param-shape changeset, so a bare structural changeset is
   # enough and keeps rendering (and `:readonly` mode entirely) DB-free.
+  # The form shows the record, plus any relation pick not saved yet
+  # (`:pending_relations`): a pick whose save was refused — a required field
+  # still empty — lives only here until a save carries it. Without laying it
+  # back on, the next parent render (every `update/2` rebuilds the form)
+  # would drop it.
   defp assign_form(socket) do
-    changeset = Ecto.Changeset.change(socket.assigns.record)
+    record = socket.assigns.record
+
+    data =
+      Enum.reduce(socket.assigns[:pending_relations] || %{}, record.data, fn {key, value}, acc ->
+        Relations.put_link(acc, key, value)
+      end)
+
+    changeset =
+      if data == record.data,
+        do: Ecto.Changeset.change(record),
+        else: Ecto.Changeset.change(record, data: data)
+
     assign(socket, :form, to_form(changeset, as: :phoenix_kit_entity_data))
   end
 
@@ -363,6 +414,75 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # stray debounced autosave in flight around a mode transition, so this
   # isn't necessarily an attack every time it fires; `debug` is enough to
   # trace it when needed without adding log noise.
+  # Relation search picker (targets too big for a checkbox list). Only in
+  # `:edit`, like autosave: the event is reachable whatever the markup.
+  def handle_event("relation_search", %{"id" => id} = params, %{assigns: %{mode: :edit}} = socket) do
+    case relation_field_for_picker(socket, id) do
+      nil ->
+        {:noreply, socket}
+
+      field ->
+        query = to_string(params["q"] || "")
+        limit = if is_integer(params["limit"]), do: params["limit"], else: 8
+
+        {rows, more?} =
+          Relations.search(field, query, limit, current_links(socket, field),
+            lang: socket.assigns.lang
+          )
+
+        {:noreply,
+         push_event(socket, "relation_results", %{
+           id: id,
+           q: query,
+           results: rows,
+           has_more: more?
+         })}
+    end
+  end
+
+  def handle_event(
+        "relation_pick",
+        %{"id" => id, "uuid" => uuid},
+        %{assigns: %{mode: :edit}} = socket
+      ) do
+    field = relation_field_for_picker(socket, id)
+
+    socket =
+      if field && Relations.uuids(uuid) != [] do
+        value =
+          if Relations.multiple?(field),
+            do: Enum.uniq(current_links(socket, field) ++ [uuid]),
+            else: uuid
+
+        put_relation_value(socket, field, value)
+      else
+        socket
+      end
+
+    {:noreply, push_event(socket, "relation_staged", %{id: id})}
+  end
+
+  def handle_event(
+        "relation_remove",
+        %{"key" => key, "uuid" => uuid},
+        %{assigns: %{mode: :edit}} = socket
+      ) do
+    case Enum.find(Relations.relation_fields(socket.assigns.entity), &(&1["key"] == key)) do
+      nil ->
+        {:noreply, socket}
+
+      field ->
+        value =
+          if Relations.multiple?(field), do: current_links(socket, field) -- [uuid], else: nil
+
+        {:noreply, put_relation_value(socket, field, value)}
+    end
+  end
+
+  def handle_event(event, _params, socket)
+      when event in ["relation_search", "relation_pick", "relation_remove"],
+      do: {:noreply, socket}
+
   def handle_event(event, _params, socket) when event in ["autosave", "submit"] do
     Logger.debug(
       "LiveDataForm ignored #{event}: mode is #{inspect(socket.assigns[:mode])}, not :edit"
@@ -405,13 +525,63 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # data map and persists them, preserving `status` untouched. Never
   # raises on failure — logs and keeps the previous `record` so the form
   # stays usable.
-  defp do_autosave(socket, raw_data_params) do
-    case persist_data(socket, raw_data_params, "autosave") do
+  defp relation_field_for_picker(socket, id) do
+    prefix = socket.assigns.record.uuid || socket.assigns.id
+
+    Enum.find(
+      Relations.relation_fields(socket.assigns.entity),
+      &(FormBuilder.relation_picker_id(prefix, &1["key"]) == id)
+    )
+  end
+
+  defp current_links(socket, field) do
+    socket.assigns.form.source
+    |> Ecto.Changeset.get_field(:data)
+    |> Relations.link_data()
+    |> Map.get(field["key"])
+    |> Relations.uuids()
+  end
+
+  # A pick shows at once (the form's hidden inputs carry it from here on)
+  # and is saved like any autosave. When that save is refused — a required
+  # field still empty — the pick stays in the form, and the next autosave
+  # sends it along with everything else.
+  defp put_relation_value(socket, field, value) do
+    labels =
+      value
+      |> Relations.uuids()
+      |> Enum.reject(&Map.has_key?(socket.assigns.relation_labels, &1))
+      |> Relations.labels_for(lang: socket.assigns.lang)
+
+    socket =
+      socket
+      |> update(:pending_relations, &Map.put(&1, field["key"], value))
+      |> assign_form()
+      |> update(:relation_labels, &Map.merge(&1, labels))
+      |> update(:relation_ctx, fn ctx ->
+        Map.new(ctx, fn {key, field_ctx} ->
+          {key, %{field_ctx | labels: Map.merge(field_ctx.labels, labels)}}
+        end)
+      end)
+
+    # Only the relation keys: this is not a full form submission, so fields
+    # missing from the params (an untouched checkbox group) must keep their
+    # saved answers.
+    socket
+    |> do_autosave(socket.assigns.pending_relations, partial: true)
+    |> assign_relations()
+  end
+
+  # A successful save persisted every pending pick: either it was the
+  # pick's own save, or a form save whose hidden inputs carried it.
+  defp do_autosave(socket, raw_data_params, opts \\ []) do
+    case persist_data(socket, raw_data_params, "autosave", opts) do
       {:ok, updated_record} ->
         send(self(), {:live_data_form, :saved, updated_record})
 
         socket
         |> assign(:record, updated_record)
+        |> assign(:pending_relations, %{})
         |> assign_form()
 
       :error ->
@@ -426,6 +596,7 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
 
         socket
         |> assign(:record, updated_record)
+        |> assign(:pending_relations, %{})
         |> assign_form()
 
       :error ->
@@ -433,14 +604,17 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
     end
   end
 
-  defp persist_data(socket, raw_data_params, log_context) do
+  # `partial: true` persists only the keys given (a relation pick), so an
+  # absent checkbox group is NOT read as "all unticked" — that reading is
+  # right only for a complete form submission.
+  defp persist_data(socket, raw_data_params, log_context, opts \\ []) do
     entity = socket.assigns.entity
     record = socket.assigns.record
     fields_definition = entity.fields_definition || []
 
     merged_data =
       fields_definition
-      |> normalize_absent_checkboxes(raw_data_params)
+      |> submitted_params(raw_data_params, opts)
       |> then(&FormBuilder.merge_other_params(fields_definition, &1))
       |> whitelist_known_fields(fields_definition)
       |> sanitize_values(fields_definition)
@@ -646,7 +820,20 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # "nothing stringifies them" was never true for `file`; see
   # `safe_string/1` below for the matching render-side guard that also
   # covers rows written before this clause existed.
-  defp sanitize_field_value(type, _value) when type in ~w(file image relation), do: :drop
+  defp sanitize_field_value(type, _value) when type in ~w(file image), do: :drop
+
+  # A relation value is a record uuid or a list of them (what the picker's
+  # inputs submit). Other shapes can only be crafted. Whether the uuids are
+  # live records of the target is `EntityData.changeset/2`'s check.
+  defp sanitize_field_value("relation", value)
+       when is_nil(value) or is_binary(value),
+       do: {:ok, value}
+
+  defp sanitize_field_value("relation", value) when is_list(value) do
+    if Enum.all?(value, &is_binary/1), do: {:ok, value}, else: :drop
+  end
+
+  defp sanitize_field_value("relation", _value), do: :drop
 
   # Every other/unrecognized field type passes through unchanged, same as
   # `FormBuilder.validate_type/2`'s own catch-all. A type outside
@@ -721,6 +908,12 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # fields have no hidden fallback input) — without this, "uncheck
   # everything" would silently no-op against the shallow merge below
   # instead of clearing the field.
+  defp submitted_params(fields_definition, params, opts) do
+    if opts[:partial],
+      do: params,
+      else: normalize_absent_checkboxes(fields_definition, params)
+  end
+
   defp normalize_absent_checkboxes(fields_definition, params) do
     Enum.reduce(fields_definition, params, fn
       %{"type" => "checkbox", "key" => key}, acc -> Map.put_new(acc, key, [])
@@ -767,7 +960,9 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
         {FormBuilder.build_fields(@entity, @form,
           wrapper_class: "mb-4",
           lang_code: @lang,
-          id_prefix: @record.uuid || @id
+          id_prefix: @record.uuid || @id,
+          relations: @relation_ctx,
+          relation_target: @myself
         )}
 
         <%= if @submit_label do %>
@@ -788,7 +983,11 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
     ~H"""
     <div class="space-y-4">
       <%= for field <- @entity.fields_definition || [] do %>
-        {readonly_field(field, @record.data || %{}, @lang)}
+        <%= if Relations.relation?(field) do %>
+          {readonly_relation(field, @record.data, @relation_labels, @lang)}
+        <% else %>
+          {readonly_field(field, @record.data || %{}, @lang)}
+        <% end %>
       <% end %>
     </div>
     """
@@ -908,6 +1107,38 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   # of `readonly_list/1` — a non-list value (`nil`, or any other stray
   # shape) passes through untouched so `readonly_list/1`'s own dash-vs-join
   # logic still applies unchanged.
+  # Titles, not uuids. A link to a record that is gone is left out; one in
+  # the trash is shown and marked.
+  defp readonly_relation(field, data, labels, lang_code) do
+    display =
+      data
+      |> Relations.link_data()
+      |> Map.get(field["key"])
+      |> Relations.uuids()
+      |> Enum.flat_map(fn uuid ->
+        case labels[uuid] do
+          %{status: "trashed", title: title} ->
+            ["#{title} (#{Relations.status_label("trashed")})"]
+
+          %{title: title} ->
+            [title]
+
+          nil ->
+            []
+        end
+      end)
+      |> readonly_list()
+
+    assigns = %{label: FormBuilder.translated_label(field, lang_code), display: display}
+
+    ~H"""
+    <div>
+      <span class="font-semibold">{@label}:</span>
+      <span>{@display}</span>
+    </div>
+    """
+  end
+
   defp translate_option_values(values, field, lang_code) when is_list(values) do
     Enum.map(values, &FormBuilder.translated_option_label(field, &1, lang_code))
   end

@@ -240,7 +240,7 @@ The DataNavigator admin LV auto-flips an entity to `"manual"` on the first drag 
 | Date | `date` | Date picker |
 | Choice | `select`, `radio`, `checkbox` | Require `options` array |
 | Media | `file`, `image`, `video` | `file` uploads; `image`/`video` store a media-library reference |
-| Relations | `relation` | Coming soon |
+| Relations | `relation` | Links to records of another entity (`target_entity`, `allow_multiple`); read with `EntityData.resolve_relations/3` |
 
 `image`/`video` fields pick through core's media library. A host can scope that
 picker — browsing and new uploads — to a folder per entity type:

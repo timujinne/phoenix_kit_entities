@@ -44,6 +44,16 @@ defmodule PhoenixKitEntities.Web.EntitiesLiveTest do
       assert html =~ "Live Pub"
       assert html =~ "Live Arch"
     end
+
+    test "is the module's landing page: title Entities, no section", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/entities")
+
+      # `Admin Panel / Entities` — the module is the title here, and
+      # "Modules" is never a section.
+      assert html =~ "<title>Entities</title>"
+      assert page_trail(html) == %{section: nil, crumbs: []}
+    end
   end
 
   describe "archive_entity" do

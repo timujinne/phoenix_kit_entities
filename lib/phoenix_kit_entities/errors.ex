@@ -48,6 +48,8 @@ defmodule PhoenixKitEntities.Errors do
           | :not_trashed
           | :referenced_by_external
           | :has_children
+          | :missing_target_entity
+          | :relations_not_allowed
 
   @typedoc """
   Tagged tuples carrying interpolation context.
@@ -83,6 +85,11 @@ defmodule PhoenixKitEntities.Errors do
       "Cannot permanently delete: this record has child records. Reassign or delete its children first."
     )
   end
+
+  def message(:missing_target_entity), do: gettext("Relation field requires a target entity")
+
+  def message(:relations_not_allowed),
+    do: gettext("Relation fields are turned off in the Entities settings.")
 
   def message({:invalid_field_type, type}) when is_binary(type) do
     gettext("Invalid field type: %{type}", type: type)

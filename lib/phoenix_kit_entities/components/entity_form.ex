@@ -52,7 +52,7 @@ defmodule PhoenixKitEntities.Components.EntityForm do
 
         public_fields =
           Enum.filter(fields_definition, fn field ->
-            field["key"] in form_fields
+            field["key"] in form_fields and field["type"] != "relation"
           end)
 
         %{entity | fields_definition: public_fields}

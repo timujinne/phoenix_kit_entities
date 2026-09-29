@@ -106,6 +106,42 @@ defmodule PhoenixKitEntities.EntityDataParentTest do
       assert {:ok, _} = EntityData.update(root, %{parent_uuid: nil})
     end
 
+    test "refuses a cycle through a chain of any depth", %{
+      entity_a: entity_a,
+      actor_uuid: actor_uuid
+    } do
+      top = create_record(entity_a, "R0", %{}, actor_uuid)
+
+      bottom =
+        Enum.reduce(1..70, top, fn i, parent ->
+          create_record(entity_a, "R#{i}", %{parent_uuid: parent.uuid}, actor_uuid)
+        end)
+
+      assert {:error, changeset} = EntityData.update(top, %{parent_uuid: bottom.uuid})
+
+      assert {"parent cannot be one of this record's descendants", _} =
+               changeset.errors[:parent_uuid]
+    end
+
+    test "refuses a trashed parent being set, but not one a row already had", %{
+      entity_a: entity_a,
+      actor_uuid: actor_uuid
+    } do
+      trashed = create_record(entity_a, "Gone", %{}, actor_uuid)
+      {:ok, trashed} = EntityData.trash(trashed)
+      child = create_record(entity_a, "C", %{}, actor_uuid)
+
+      assert {:error, changeset} = EntityData.update(child, %{parent_uuid: trashed.uuid})
+      assert {"parent record is in the trash", _} = changeset.errors[:parent_uuid]
+
+      # A parent trashed after the fact stays; the row's other fields still save.
+      parent = create_record(entity_a, "P", %{}, actor_uuid)
+      under = create_record(entity_a, "U", %{parent_uuid: parent.uuid}, actor_uuid)
+      {:ok, _} = EntityData.trash(parent)
+      assert {:ok, renamed} = EntityData.update(under, %{title: "Renamed"})
+      assert renamed.parent_uuid == parent.uuid
+    end
+
     test "accepts a same-entity parent", %{entity_a: entity_a, actor_uuid: actor_uuid} do
       parent = create_record(entity_a, "P", %{}, actor_uuid)
       child = create_record(entity_a, "C", %{}, actor_uuid)

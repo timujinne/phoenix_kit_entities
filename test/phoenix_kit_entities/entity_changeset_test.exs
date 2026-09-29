@@ -209,15 +209,27 @@ defmodule PhoenixKitEntities.EntityChangesetTest do
         Enum.map(types, fn type ->
           base = %{"type" => type, "key" => "field_#{type}", "label" => "Field #{type}"}
 
-          if type in ["select", "radio", "checkbox"] do
-            Map.put(base, "options", ["Option A", "Option B"])
-          else
-            base
+          case type do
+            type when type in ["select", "radio", "checkbox"] ->
+              Map.put(base, "options", ["Option A", "Option B"])
+
+            "relation" ->
+              Map.put(base, "target_entity", "some_entity")
+
+            _ ->
+              base
           end
         end)
 
       cs = changeset(%{fields_definition: fields})
       refute errors_on(cs)[:fields_definition]
+    end
+
+    test "invalid - a relation field without a target_entity" do
+      fields = [%{"type" => "relation", "key" => "grades", "label" => "Grades"}]
+      cs = changeset(%{fields_definition: fields})
+      assert [message] = errors_on(cs)[:fields_definition]
+      assert message =~ "target_entity"
     end
 
     test "valid - heading field type (display-only, no options needed)" do

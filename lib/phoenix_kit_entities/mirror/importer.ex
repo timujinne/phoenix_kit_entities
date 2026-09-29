@@ -23,13 +23,43 @@ defmodule PhoenixKitEntities.Mirror.Importer do
 
   - Entity definitions: matched by `name` field
   - Entity data records: matched by `entity_name` + `slug`
+
+  ## Relation fields
+
+  The exporter writes a relation's target as the entity's name and each
+  link as `{"slug": …}`; both come back as local uuids here.
+
+  One call (`import_entity/2`, `import_from_data/2`, `import_all/1`,
+  `import_selected/1`) is one run, written as a graph in ONE transaction:
+
+    1. every definition in the run is imported, then relation fields are
+       pointed at the local uuids of their targets;
+    2. every record gets its uuid up front — an existing record (matched
+       by slug) keeps its own, a new one is assigned one — so a link can
+       name a record that is written later in the run, in any file and in
+       any order, cycles included;
+    3. every record is validated before anything is written. A record that
+       fails is reported and not written, and so is any record that links
+       to one (repeated until nothing else drops out), so what is written
+       never points at a record that is not there;
+    4. the rest is written, each link checked once all exist; broadcasts
+       and mirror exports follow the commit.
+
+  A ref that matches nothing — not in the database, not in the run — is
+  left out and listed under `:unresolved_links` in the result (a
+  required relation left empty that way fails validation). If a write
+  fails anyway (a race with another writer), the whole run rolls back and
+  every result says so.
   """
 
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Slug
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
+  alias PhoenixKitEntities.Events
+  alias PhoenixKitEntities.Mirror.Exporter
   alias PhoenixKitEntities.Mirror.Storage
+  alias PhoenixKitEntities.Relations
 
   @type conflict_strategy :: :skip | :overwrite | :merge
   @type import_result ::
@@ -55,48 +85,376 @@ defmodule PhoenixKitEntities.Mirror.Importer do
   """
   @spec import_entity(String.t(), conflict_strategy()) :: {:ok, map()} | {:error, term()}
   def import_entity(entity_name, strategy \\ :skip) do
+    with {:ok, json_data} <- read_entity_file(entity_name) do
+      import_from_data(json_data, strategy)
+    end
+  end
+
+  defp read_entity_file(entity_name) do
     case Storage.read_entity(entity_name) do
-      {:ok, json_data} ->
-        import_from_data(json_data, strategy)
-
-      {:error, :not_found} ->
-        {:error, {:file_not_found, entity_name}}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, json_data} -> {:ok, json_data}
+      {:error, :not_found} -> {:error, {:file_not_found, entity_name}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   @doc """
   Imports from parsed JSON data (definition + data).
+
+  Returns `{:ok, %{definition: result, data: [result], unresolved_links: [...]}}`.
   """
   @spec import_from_data(map(), conflict_strategy()) :: {:ok, map()} | {:error, term()}
   def import_from_data(%{"definition" => definition, "data" => data}, strategy)
       when is_map(definition) and is_list(data) do
-    # Import definition first
-    definition_result = import_definition(definition, strategy)
+    {[result], unresolved} =
+      run([unit(definition, data, strategy, fn _record, _i -> strategy end)])
 
-    # Get the entity for data import
-    entity_name = definition["name"]
-
-    data_results =
-      case Entities.get_entity_by_name(entity_name) do
-        nil ->
-          # Entity doesn't exist, can't import data
-          Enum.map(data, fn record ->
-            {:error, {:entity_not_found, entity_name, record["slug"]}}
-          end)
-
-        entity ->
-          Enum.map(data, fn record_data ->
-            import_data_record(entity, record_data, strategy)
-          end)
-      end
-
-    {:ok, %{definition: definition_result, data: data_results}}
+    {:ok, Map.put(result, :unresolved_links, unresolved)}
   end
 
   def import_from_data(_, _), do: {:error, :invalid_format}
+
+  # ============================================================================
+  # One run: a graph written in one transaction (see the moduledoc)
+  # ============================================================================
+
+  # A unit is one entity file's work: what to do with its definition
+  # (`:leave` = not selected, untouched) and, per record, an action or
+  # `:leave`.
+  defp unit(definition, data, def_action, record_action) do
+    %{
+      name: definition["name"],
+      definition: definition,
+      data: data,
+      def_action: def_action,
+      record_action: record_action
+    }
+  end
+
+  defp run(units) do
+    txn =
+      repo().transaction(fn ->
+        units
+        |> Enum.map(&import_unit_definition/1)
+        |> Enum.map(&load_unit_entity/1)
+        |> plan_records()
+        |> resolve_links()
+        |> drop_broken()
+        |> write_records()
+        |> verify_links()
+      end)
+
+    case txn do
+      {:ok, units} ->
+        announce(units)
+        {Enum.map(units, &unit_result/1), unresolved_links(units)}
+
+      {:error, {:aborted, reason, units}} ->
+        {Enum.map(units, &aborted_result(&1, reason)), []}
+
+      # A write failed mid-run (`write_record/2`): nothing was committed.
+      {:error, {:write_failed, _} = reason} ->
+        {Enum.map(units, &rolled_back_unit(&1, reason)), []}
+    end
+  end
+
+  defp rolled_back_unit(unit, reason) do
+    %{
+      definition: {:error, {:rolled_back, reason}},
+      data: Enum.map(unit.data, fn _ -> {:error, {:rolled_back, reason}} end)
+    }
+  end
+
+  defp import_unit_definition(%{def_action: :leave} = unit),
+    do: Map.put(unit, :def_result, {:ok, :skipped, nil})
+
+  defp import_unit_definition(unit),
+    do: Map.put(unit, :def_result, import_definition(unit.definition, unit.def_action))
+
+  # After every definition of the run exists, relation fields can point at
+  # their targets' uuids (a target imported after its source still had
+  # only a name when the source was written).
+  defp load_unit_entity(unit) do
+    entity =
+      case Entities.get_entity_by_name(unit.name) do
+        nil -> nil
+        entity -> relink_definition(entity)
+      end
+
+    Map.put(unit, :entity, entity)
+  end
+
+  defp relink_definition(entity) do
+    fields = Relations.import_fields(entity.fields_definition)
+
+    with true <- fields != entity.fields_definition,
+         {:ok, updated} <- Entities.update_entity(entity, %{fields_definition: fields}) do
+      updated
+    else
+      _ -> entity
+    end
+  end
+
+  # Each record's operation, with its uuid decided now.
+  defp plan_records(units) do
+    Enum.map(units, fn unit ->
+      records =
+        unit.data
+        |> Enum.with_index()
+        |> Enum.map(fn {json, index} -> plan_record(unit, json, index) end)
+
+      Map.put(unit, :records, records)
+    end)
+  end
+
+  defp plan_record(%{entity: nil} = unit, json, _index),
+    do: %{json: json, op: {:error, {:entity_not_found, unit.name, json["slug"]}}}
+
+  defp plan_record(unit, json, index) do
+    slug = json["slug"]
+
+    op =
+      case unit.record_action.(json, index) do
+        :leave -> :leave
+        action -> plan_op(unit.entity, slug, action)
+      end
+
+    %{json: json, op: op}
+  end
+
+  defp plan_op(entity, slug, action) do
+    case if(slug in [nil, ""], do: nil, else: EntityData.get_by_slug(entity.uuid, slug)) do
+      nil -> {:create, UUIDv7.generate()}
+      existing when action == :skip -> {:skip, existing}
+      existing -> {:update, existing, action}
+    end
+  end
+
+  # `%{{entity_name, slug} => uuid}` for every record the run will write
+  # or keeps — what a slug ref resolves to.
+  defp planned_uuids(units) do
+    for unit <- units,
+        record <- unit.records,
+        slug <- [record.json["slug"]],
+        slug not in [nil, ""],
+        uuid <- [op_uuid(record.op)],
+        uuid != nil,
+        into: %{},
+        do: {{unit.name, slug}, uuid}
+  end
+
+  defp op_uuid({:create, uuid}), do: uuid
+  defp op_uuid({:skip, existing}), do: existing.uuid
+  defp op_uuid({:update, existing, _action}), do: existing.uuid
+  defp op_uuid(_op), do: nil
+
+  defp resolve_links(units) do
+    planned = planned_uuids(units)
+
+    Enum.map(units, fn unit ->
+      %{unit | records: Enum.map(unit.records, &resolve_record_links(unit.entity, &1, planned))}
+    end)
+  end
+
+  defp resolve_record_links(entity, record, planned) do
+    if writes?(record) do
+      {data, unresolved} = Relations.import_data(entity, record.json["data"], planned)
+
+      record
+      |> Map.put(:json, Map.put(record.json, "data", data))
+      |> Map.put(:unresolved, unresolved)
+    else
+      Map.put(record, :unresolved, %{})
+    end
+  end
+
+  defp writes?(%{op: {:create, _}}), do: true
+  defp writes?(%{op: {:update, _, _}}), do: true
+  defp writes?(_record), do: false
+
+  # Validate every write before any happens (a failed write inside the
+  # run's transaction would abort all of it), then drop the records that
+  # link to a record that will not exist.
+  defp drop_broken(units) do
+    units =
+      Enum.map(units, fn unit ->
+        %{unit | records: Enum.map(unit.records, &prevalidate(unit.entity, &1))}
+      end)
+
+    drop_links_to_missing(units)
+  end
+
+  defp prevalidate(entity, %{op: {:create, uuid}} = record) do
+    changeset =
+      EntityData.changeset(%EntityData{uuid: uuid}, create_attrs(entity, record.json),
+        relation_check: :defer
+      )
+
+    if changeset.valid?, do: record, else: fail(record, {:validation_failed, changeset})
+  end
+
+  defp prevalidate(_entity, %{op: {:update, existing, action}} = record) do
+    changeset =
+      EntityData.changeset(existing, update_attrs(existing, record.json, action),
+        relation_check: :defer
+      )
+
+    if changeset.valid?, do: record, else: fail(record, {:validation_failed, changeset})
+  end
+
+  defp prevalidate(_entity, record), do: record
+
+  # A failed NEW record keeps its planned uuid, so links to it are found.
+  defp fail(%{op: {:create, uuid}} = record, reason),
+    do: record |> Map.put(:planned_uuid, uuid) |> Map.put(:op, {:error, reason})
+
+  defp fail(record, reason), do: %{record | op: {:error, reason}}
+
+  # A new record that will not be written leaves every link to it
+  # dangling; the records holding one are not written either. Repeat until
+  # nothing more drops out (a chain of links drops together).
+  defp drop_links_to_missing(units) do
+    missing =
+      for unit <- units,
+          record <- unit.records,
+          match?({:error, _}, record.op),
+          uuid <- [record[:planned_uuid]],
+          uuid != nil,
+          into: MapSet.new(),
+          do: uuid
+
+    {units, dropped?} =
+      Enum.map_reduce(units, false, fn unit, dropped? ->
+        {records, now?} =
+          Enum.map_reduce(unit.records, false, &drop_if_dangling(unit.entity, &1, &2, missing))
+
+        {%{unit | records: records}, dropped? or now?}
+      end)
+
+    if dropped?, do: drop_links_to_missing(units), else: units
+  end
+
+  defp drop_if_dangling(entity, record, dropped?, missing) do
+    dangling = links_into(entity, record, missing)
+
+    if writes?(record) and dangling != [],
+      do: {fail(record, {:broken_links, dangling}), true},
+      else: {record, dropped?}
+  end
+
+  defp links_into(entity, record, missing) do
+    links = Relations.link_data(record.json["data"])
+
+    entity
+    |> Relations.relation_fields()
+    |> Enum.flat_map(&Relations.uuids(links[&1["key"]]))
+    |> Enum.filter(&MapSet.member?(missing, &1))
+  end
+
+  defp write_records(units) do
+    Enum.map(units, fn unit ->
+      %{unit | records: Enum.map(unit.records, &write_record(unit.entity, &1))}
+    end)
+  end
+
+  @write_opts [relation_check: :defer, defer_notify: true]
+
+  defp write_record(entity, %{op: {:create, uuid}} = record) do
+    case EntityData.create(create_attrs(entity, record.json), [uuid: uuid] ++ @write_opts) do
+      {:ok, created} -> Map.put(record, :result, {:ok, :created, created})
+      {:error, reason} -> repo().rollback({:write_failed, reason})
+    end
+  end
+
+  defp write_record(_entity, %{op: {:update, existing, action}} = record) do
+    case EntityData.update(existing, update_attrs(existing, record.json, action), @write_opts) do
+      {:ok, updated} ->
+        Map.put(record, :result, {:ok, :updated, updated})
+
+      # A managed record's locked slug is refused before any write, so it
+      # does not abort the run.
+      {:error, reason} when is_atom(reason) ->
+        Map.put(record, :result, {:error, {:refused, reason}})
+
+      {:error, reason} ->
+        repo().rollback({:write_failed, reason})
+    end
+  end
+
+  defp write_record(_entity, %{op: {:skip, existing}} = record),
+    do: Map.put(record, :result, {:ok, :skipped, existing})
+
+  defp write_record(_entity, %{op: :leave} = record),
+    do: Map.put(record, :result, {:ok, :skipped, nil})
+
+  defp write_record(_entity, %{op: {:error, reason}} = record),
+    do: Map.put(record, :result, {:error, reason})
+
+  # Every record is in; now each written link must be a live record of its
+  # target. It is by construction — this is the safety net.
+  defp verify_links(units) do
+    broken =
+      for unit <- units,
+          %{result: {:ok, status, written}} <- unit.records,
+          status in [:created, :updated],
+          fields <- [Relations.relation_fields(unit.entity)],
+          fields != [],
+          {:error, errors} <- [Relations.check_references(fields, written.data, nil, nil)],
+          do: {unit.name, written.slug, Enum.map(errors, &elem(&1, 1))}
+
+    if broken == [], do: units, else: repo().rollback({:aborted, {:broken_links, broken}, units})
+  end
+
+  defp announce(units) do
+    written =
+      for unit <- units,
+          %{result: {:ok, status, record}} <- unit.records,
+          status in [:created, :updated],
+          do: {status, record}
+
+    Enum.each(written, fn
+      {:created, record} -> Events.broadcast_data_created(record.entity_uuid, record.uuid)
+      {:updated, record} -> Events.broadcast_data_updated(record.entity_uuid, record.uuid)
+    end)
+
+    written
+    |> Enum.map(fn {_status, record} -> record.entity_uuid end)
+    |> Enum.uniq()
+    |> Enum.each(&mirror_entity/1)
+  end
+
+  defp mirror_entity(entity_uuid) do
+    with %Entities{} = entity <- Entities.get_entity(entity_uuid),
+         true <- Entities.mirror_data_enabled?(entity) do
+      Task.Supervisor.start_child(PhoenixKit.TaskSupervisor, fn ->
+        Exporter.export_entity(entity)
+      end)
+    end
+  end
+
+  defp unit_result(unit),
+    do: %{definition: unit.def_result, data: Enum.map(unit.records, & &1.result)}
+
+  # The run rolled back: nothing it wrote exists.
+  defp aborted_result(unit, reason) do
+    undo = fn
+      {:ok, status, _} when status in [:created, :updated] -> {:error, {:rolled_back, reason}}
+      other -> other
+    end
+
+    %{
+      definition: undo.(unit.def_result),
+      data: Enum.map(unit.records, &undo.(Map.get(&1, :result, {:error, {:rolled_back, reason}})))
+    }
+  end
+
+  defp unresolved_links(units) do
+    for unit <- units,
+        %{result: {:ok, status, record}, unresolved: unresolved} <- unit.records,
+        status in [:created, :updated],
+        {key, refs} <- unresolved,
+        do: %{entity: unit.name, slug: record.slug, field: key, refs: refs}
+  end
 
   # ============================================================================
   # Definition Import
@@ -104,6 +462,9 @@ defmodule PhoenixKitEntities.Mirror.Importer do
 
   defp import_definition(definition, strategy) do
     entity_name = definition["name"]
+    # Relation targets arrive as entity names; point at local uuids where
+    # the target already exists (`link_relations/1` catches the rest).
+    definition = Map.update(definition, "fields_definition", nil, &Relations.import_fields/1)
 
     case Entities.get_entity_by_name(entity_name) do
       nil ->
@@ -187,42 +548,31 @@ defmodule PhoenixKitEntities.Mirror.Importer do
   # Data Import
   # ============================================================================
 
-  defp import_data_record(entity, record_data, strategy) do
-    slug = record_data["slug"]
-
-    if is_nil(slug) or slug == "" do
-      # Records without slugs can't be matched to existing records, so always create new
-      create_data_from_import(entity, record_data)
-    else
-      case EntityData.get_by_slug(entity.uuid, slug) do
-        nil ->
-          create_data_from_import(entity, record_data)
-
-        existing_record ->
-          handle_data_conflict(existing_record, record_data, strategy)
-      end
-    end
-  end
-
-  defp create_data_from_import(entity, record_data) do
-    # Generate slug from title if not provided
-    slug = generate_slug_if_missing(entity.uuid, record_data["slug"], record_data["title"])
-
-    attrs = %{
+  defp create_attrs(entity, record_data) do
+    %{
       entity_uuid: entity.uuid,
       title: record_data["title"],
-      slug: slug,
+      # Generate slug from title if not provided
+      slug: generate_slug_if_missing(entity.uuid, record_data["slug"], record_data["title"]),
       status: record_data["status"] || "published",
       data: record_data["data"] || %{},
       metadata: record_data["metadata"] || %{},
       created_by_uuid: get_default_user_uuid()
     }
-
-    case EntityData.create(attrs) do
-      {:ok, record} -> {:ok, :created, record}
-      {:error, changeset} -> {:error, {:validation_failed, changeset}}
-    end
   end
+
+  defp update_attrs(existing, record_data, :overwrite) do
+    %{
+      title: record_data["title"],
+      slug: record_data["slug"],
+      status: record_data["status"] || existing.status,
+      data: record_data["data"] || %{},
+      metadata: record_data["metadata"] || %{}
+    }
+  end
+
+  defp update_attrs(existing, record_data, :merge),
+    do: build_merged_data_attrs(existing, record_data)
 
   defp generate_slug_if_missing(_entity_uuid, slug, _title) when is_binary(slug) and slug != "",
     do: slug
@@ -292,42 +642,6 @@ defmodule PhoenixKitEntities.Mirror.Importer do
     end
   end
 
-  defp handle_data_conflict(existing_record, _record_data, :skip) do
-    {:ok, :skipped, existing_record}
-  end
-
-  defp handle_data_conflict(existing_record, record_data, :overwrite) do
-    attrs = %{
-      title: record_data["title"],
-      slug: record_data["slug"],
-      status: record_data["status"] || existing_record.status,
-      data: record_data["data"] || %{},
-      metadata: record_data["metadata"] || %{}
-    }
-
-    case EntityData.update(existing_record, attrs) do
-      {:ok, record} -> {:ok, :updated, record}
-      # A managed value record's slug (`Managed.validate_data_mutation/4`,
-      # wired into `EntityData.update/3`) refuses with the atom
-      # `:locked_key`, not a changeset — same split as
-      # `create_entity_from_import/1` above, for the same reason: label it
-      # as a refusal instead of a "validation failure" there is nothing to
-      # render field errors for.
-      {:error, %Ecto.Changeset{} = changeset} -> {:error, {:validation_failed, changeset}}
-      {:error, reason} -> {:error, {:refused, reason}}
-    end
-  end
-
-  defp handle_data_conflict(existing_record, record_data, :merge) do
-    attrs = build_merged_data_attrs(existing_record, record_data)
-
-    case EntityData.update(existing_record, attrs) do
-      {:ok, record} -> {:ok, :updated, record}
-      {:error, %Ecto.Changeset{} = changeset} -> {:error, {:validation_failed, changeset}}
-      {:error, reason} -> {:error, {:refused, reason}}
-    end
-  end
-
   defp build_merged_data_attrs(existing, record_data) do
     %{
       title: record_data["title"] || existing.title,
@@ -343,37 +657,25 @@ defmodule PhoenixKitEntities.Mirror.Importer do
   # ============================================================================
 
   @doc """
-  Imports all entities from the mirror directory.
+  Imports all entities from the mirror directory, as one run (see the
+  moduledoc).
 
   ## Parameters
     - `strategy` - Conflict resolution strategy (default: :skip)
 
   ## Returns
-    - `{:ok, %{definitions: [...], data: [...]}}`
+    - `{:ok, %{definitions: [...], data: [...], unresolved_links: [...]}}`
   """
   @spec import_all(conflict_strategy()) :: {:ok, map()}
   def import_all(strategy \\ :skip) do
-    all_results =
-      Storage.list_entities()
-      |> Enum.map(fn entity_name ->
-        case import_entity(entity_name, strategy) do
-          {:ok, result} -> result
-          {:error, reason} -> %{definition: {:error, reason}, data: []}
-        end
-      end)
-
-    definition_results = Enum.map(all_results, & &1.definition)
-    data_results = Enum.flat_map(all_results, & &1.data)
-
-    {:ok,
-     %{
-       definitions: definition_results,
-       data: data_results
-     }}
+    Storage.list_entities()
+    |> Enum.map(&file_unit(&1, strategy, fn _record, _i -> strategy end))
+    |> run_units()
   end
 
   @doc """
-  Imports selected entities and records based on user selections.
+  Imports selected entities and records based on user selections, as one
+  run (see the moduledoc).
 
   ## Parameters
     - `selections` - Map of entity_name => %{definition: action, data: %{slug => action}}
@@ -392,71 +694,52 @@ defmodule PhoenixKitEntities.Mirror.Importer do
       }
 
   ## Returns
-    - `{:ok, %{definitions: [...], data: [...]}}`
+    - `{:ok, %{definitions: [...], data: [...], unresolved_links: [...]}}`
   """
   @spec import_selected(map()) :: {:ok, map()}
   def import_selected(selections) when is_map(selections) do
-    all_results =
-      selections
-      |> Enum.map(fn {entity_name, entity_selections} ->
-        import_entity_selective(entity_name, entity_selections)
-      end)
+    selections
+    |> Enum.map(fn {entity_name, %{definition: def_action, data: data_actions}} ->
+      file_unit(entity_name, selected(def_action), &record_selection(data_actions, &1, &2))
+    end)
+    |> run_units()
+  end
 
-    definition_results = Enum.map(all_results, & &1.definition)
-    data_results = Enum.flat_map(all_results, & &1.data)
+  defp record_selection(data_actions, record, index) do
+    slug = record["slug"]
+    key = if is_nil(slug) or slug == "", do: "new-#{index}", else: slug
+    data_actions |> Map.get(key, :skip) |> selected()
+  end
+
+  defp file_unit(entity_name, def_action, record_action) do
+    with {:ok, json} <- read_entity_file(entity_name) do
+      unit_from_json(json, def_action, record_action)
+    end
+  end
+
+  # In a selection, :skip means "not selected": leave it untouched.
+  defp selected(:skip), do: :leave
+  defp selected(action), do: action
+
+  defp unit_from_json(%{"definition" => definition, "data" => data}, def_action, record_action)
+       when is_map(definition) and is_list(data),
+       do: {:ok, unit(definition, data, def_action, record_action)}
+
+  defp unit_from_json(_json, _def_action, _record_action), do: {:error, :invalid_format}
+
+  # Files that could not be read are reported alongside the run's results.
+  defp run_units(entries) do
+    units = for {:ok, unit} <- entries, do: unit
+    failed = for {:error, reason} <- entries, do: %{definition: {:error, reason}, data: []}
+    {results, unresolved} = if units == [], do: {[], []}, else: run(units)
+    results = results ++ failed
 
     {:ok,
      %{
-       definitions: definition_results,
-       data: data_results
+       definitions: Enum.map(results, & &1.definition),
+       data: Enum.flat_map(results, & &1.data),
+       unresolved_links: unresolved
      }}
-  end
-
-  defp import_entity_selective(entity_name, %{definition: def_action, data: data_actions}) do
-    case Storage.read_entity(entity_name) do
-      {:ok, %{"definition" => definition, "data" => data}} ->
-        definition_result = import_definition_selective(definition, def_action)
-        data_results = import_data_selective(definition["name"], data, data_actions)
-        %{definition: definition_result, data: data_results}
-
-      {:error, reason} ->
-        %{definition: {:error, reason}, data: []}
-    end
-  end
-
-  defp import_definition_selective(_definition, :skip), do: {:ok, :skipped, nil}
-  defp import_definition_selective(definition, action), do: import_definition(definition, action)
-
-  defp import_data_selective(entity_name, data, data_actions) do
-    case Entities.get_entity_by_name(entity_name) do
-      nil ->
-        Enum.map(data, fn record ->
-          {:error, {:entity_not_found, entity_name, record["slug"]}}
-        end)
-
-      entity ->
-        import_data_records_with_actions(entity, data, data_actions)
-    end
-  end
-
-  defp import_data_records_with_actions(entity, data, data_actions) do
-    data
-    |> Enum.with_index()
-    |> Enum.map(fn {record_data, index} ->
-      import_single_data_record(entity, record_data, index, data_actions)
-    end)
-  end
-
-  defp import_single_data_record(entity, record_data, index, data_actions) do
-    slug = record_data["slug"]
-    selection_key = if is_nil(slug) or slug == "", do: "new-#{index}", else: slug
-    action = Map.get(data_actions, selection_key, :skip)
-
-    if action == :skip do
-      {:ok, :skipped, nil}
-    else
-      import_data_record(entity, record_data, action)
-    end
   end
 
   # ============================================================================
@@ -761,7 +1044,8 @@ defmodule PhoenixKitEntities.Mirror.Importer do
       existing.description == imported["description"] and
       existing.icon == imported["icon"] and
       to_string(existing.status) == (imported["status"] || "published") and
-      normalize_list(existing.fields_definition) == normalize_list(imported["fields_definition"]) and
+      normalize_list(Relations.export_fields(existing.fields_definition)) ==
+        normalize_list(imported["fields_definition"]) and
       normalize_map(existing.settings) == normalize_map(imported["settings"])
   end
 
@@ -770,8 +1054,17 @@ defmodule PhoenixKitEntities.Mirror.Importer do
     existing.title == imported["title"] and
       existing.slug == imported["slug"] and
       to_string(existing.status) == (imported["status"] || "published") and
-      normalize_map(existing.data) == normalize_map(imported["data"]) and
+      normalize_map(exported_data(existing)) == normalize_map(imported["data"]) and
       normalize_map(existing.metadata) == normalize_map(imported["metadata"])
+  end
+
+  # A record's data as the exporter would write it — relation links as
+  # slug refs — so an unchanged record compares identical to its file.
+  defp exported_data(%EntityData{entity_uuid: entity_uuid, data: data}) do
+    case Entities.get_entity(entity_uuid) do
+      nil -> data
+      entity -> entity |> Relations.export_data([data]) |> hd()
+    end
   end
 
   # Normalize nil/null to empty map for comparison
@@ -783,4 +1076,6 @@ defmodule PhoenixKitEntities.Mirror.Importer do
   defp normalize_list(nil), do: []
   defp normalize_list(list) when is_list(list), do: list
   defp normalize_list(_), do: []
+
+  defp repo, do: PhoenixKit.RepoHelper.repo()
 end

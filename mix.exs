@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.4.16"
+  @version "0.5.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do
@@ -120,15 +120,19 @@ defmodule PhoenixKitEntities.MixProject do
       # now-`@deprecated` Scope.admin?/1) — an older core has no such function,
       # so this is an UndefinedFunctionError at runtime, not a warning.
       #
-      # Floor 2.26: number/decimal fields render core's `<.decimal_input>`
-      # (`PhoenixKitWeb.Components.Core.DecimalInput`) and parse through
-      # `PhoenixKit.Utils.Number.parse_decimal/2`, both first shipped in
-      # phoenix_kit 2.26.0 — an older core fails to COMPILE this package.
+      # Floor 2.38.0: the parent picker is core's `TreePicker` with
+      # `Utils.Tree` and `Utils.TreeQuery`, the actor and activity log come
+      # from `PhoenixKitWeb.Actor` and `Activity.log/3`, the file scope
+      # folder from `Storage.ResourceFolders`, and the forms use
+      # `mount_multilang(open_on:)` — all first shipped there, none
+      # feature-detected, so an older core fails to COMPILE this package
+      # (2.26's `<.decimal_input>` is subsumed).
       #
-      # Keep it TWO-segment (see test/core_pin_conformance_test.exs): a
-      # three-segment `~> 2.26.x` means `< 2.27.0` and makes `mix deps.get`
-      # unsolvable for every host pairing this module with a newer core minor.
-      pk_dep(:phoenix_kit, "~> 2.26"),
+      # Patch-precise floor in the compound form (see
+      # test/core_pin_conformance_test.exs): a three-segment `~> 2.38.x`
+      # means `< 2.39.0` and makes `mix deps.get` unsolvable for every host
+      # pairing this module with a newer core minor.
+      pk_dep(:phoenix_kit, ">= 2.38.0 and < 3.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

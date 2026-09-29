@@ -41,7 +41,10 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/entities/new")
 
-      assert html =~ "<title>New Entity</title>"
+      # `Admin Panel / Entities / New entity` — no entity to name yet.
+      assert html =~ "<title>New entity</title>"
+      assert %{section: {"Entities", section_path}, crumbs: []} = page_trail(html)
+      assert String.ends_with?(section_path, "/admin/entities")
     end
 
     test "submit button has phx-disable-with (delta-pin C5)", %{conn: conn} = ctx do
@@ -57,7 +60,14 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
-      assert html =~ "<title>Edit Entity</title>"
+      # `Admin Panel / Entities / EF Tests / Edit` — the entity crumb links
+      # to its records page, the one page the entity has.
+      assert html =~ "<title>Edit</title>"
+
+      assert %{section: {"Entities", _}, crumbs: [{"EF Tests", entity_path}]} =
+               page_trail(html)
+
+      assert String.ends_with?(entity_path, "/admin/entities/ef_test/data")
       assert html =~ ~s|value="EF Test"|
       assert html =~ ~s|value="ef_test"|
     end
@@ -82,6 +92,19 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       # state, so check the rendered DOM for an error class).
       assert html =~ "input-error" or html =~ "must contain only lowercase"
     end
+  end
+
+  test "a save is logged with the signed-in actor", %{conn: conn} = ctx do
+    # Not the entity's creator, so a fallback to the creator cannot pass.
+    editor = Ecto.UUID.generate()
+    conn = put_test_scope(conn, fake_scope(user_uuid: editor))
+    {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
+
+    view
+    |> form("form[phx-change='validate']", %{"entities" => %{"display_name" => "Attributed"}})
+    |> render_submit()
+
+    assert_activity_logged("entity.updated", resource_uuid: ctx.entity.uuid, actor_uuid: editor)
   end
 
   describe "save_and_return" do
@@ -120,7 +143,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       # No redirect — the view stays on the edit page (handle_save_success
       # falls through to the "stay on edit" branch). Render-after-submit
       # would crash if a push_navigate had fired.
-      assert page_title(view) =~ "Edit Entity"
+      assert page_title(view) == "Edit"
       # And the save actually persisted.
       assert Entities.get_entity!(ctx.entity.uuid).display_name == "Stay Put"
     end
@@ -177,7 +200,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       render_hook(view, "switch_language", %{"lang" => "totally-fake"})
-      assert page_title(view) =~ "Edit Entity"
+      assert page_title(view) == "Edit"
     end
   end
 
@@ -188,7 +211,7 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       send(view.pid, {:unrelated_message, :payload})
-      assert page_title(view) =~ "Edit Entity"
+      assert page_title(view) == "Edit"
     end
 
     test "logs at :debug level so unexpected messages stay visible in dev",

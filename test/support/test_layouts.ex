@@ -24,6 +24,12 @@ defmodule PhoenixKitEntities.Test.Layouts do
         <title>{assigns[:page_title] || "Test"}</title>
       </head>
       <body>
+        <%!-- Likewise the rest of the trail (section, crumbs): it exists only
+        as assigns here, so `page_trail/1` reads it back from this nav. --%>
+        <nav id="page-trail">
+          <span :if={assigns[:page_section]} data-section data-path={assigns[:page_section_path]}>{@page_section}</span>
+          <span :for={crumb <- assigns[:page_crumbs] || []} data-crumb data-path={crumb[:path]}>{crumb.label}</span>
+        </nav>
         {@inner_content}
       </body>
     </html>

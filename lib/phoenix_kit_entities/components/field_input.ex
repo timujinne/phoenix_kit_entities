@@ -363,9 +363,12 @@ defmodule PhoenixKitEntities.Components.FieldInput do
     """
   end
 
-  # heading carries no data; unknown types (relation, future additions
-  # this version doesn't know) degrade to a muted note instead of
-  # crashing the host's page.
+  # heading carries no data. relation needs its target's records, which
+  # this DB-free control does not load (edit it in the admin form or
+  # `LiveDataForm`); it renders no input, so a host save through this
+  # component never touches the stored links. Unknown types (future
+  # additions) degrade to the same muted note instead of crashing the
+  # host's page.
   defp render_input(%{type: "heading"} = assigns), do: ~H""
 
   defp render_input(assigns) do

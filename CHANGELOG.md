@@ -1,3 +1,95 @@
+## 0.5.0 - 2026-09-27
+
+### Added
+
+- **The `relation` field type works.** A record can link to one record of
+  another entity, or to several with `"allow_multiple" => true` (a panel size
+  to the grades and thicknesses it is sold in, say). The field names its
+  target in `target_entity`: the entity's uuid, or its name. The value is the
+  linked record's uuid, or a list of uuids, stored in the primary language's
+  data only. `FieldTypes.relation_field/4` builds one.
+- **Admin picker.** A target with up to 50 live records shows checkboxes, or a
+  select for a single link. A bigger target shows a search box (core's
+  `SearchPicker`) with the linked records as removable chips. The entity
+  editor picks the target entity and the "allow multiple" option. Record
+  lists, readonly views and `LiveDataForm` show titles, not uuids.
+- **Write-path checks.** `EntityData.create/2` and `update/3` (so seeds too)
+  refuse a link that is not a live record of the target, and a second link in
+  a single field. Only links a write adds are checked, so trashing a target
+  never blocks saving the records that point at it.
+- **`EntityData.resolve_relations/3`** returns the linked records for a list of
+  records, `%{record_uuid => [linked]}`, in the target's order. It runs one
+  query per target entity, not one per record. Missing and trashed targets
+  are skipped, and `statuses:` narrows further.
+- **Deleting a target permanently removes the link** from every record that
+  holds it, in the same transaction, for single and bulk deletes. The removal
+  edits only the link, in the row's current data, so a concurrent edit to
+  the same record survives. A save from a copy loaded before the delete does
+  not bring the link back. Trashing keeps the link, so a restore brings it
+  back. "Delete forever" on a trashed record says how many records link to
+  it; `EntityData.count_relation_references/1` gives the same count.
+- **Mirror export/import carries relations between installs.** A relation
+  field exports its target as the entity's name, and each link as the linked
+  record's slug. Import turns both back into local uuids.
+
+### Changed
+
+- **A mirror import is one transaction per run** (`import_entity/2`,
+  `import_from_data/2`, `import_all/1`, `import_selected/1`). All definitions
+  are imported first, and every record's uuid is decided before anything is
+  written, so links resolve whatever order the files and records come in,
+  cycles included. A record that fails is not written, and neither is any
+  record linking to it. The result map gains `:unresolved_links`, listing
+  refs that matched nothing. Broadcasts and mirror re-exports now happen once
+  the run commits, not per record.
+- `EntityData.update/3` now always runs in a transaction.
+- **`entities_allow_relations` is enforced.** With it off, no new relation
+  field can be added. Relation fields an entity already has keep working. The
+  setting still has no settings-page toggle.
+- Public forms never accept a relation value, even if an old
+  `public_form_fields` list names the field.
+- When the final data check refuses a save in the admin record form (for
+  example, a linked record was trashed in another tab), the form now shows a
+  flash. Before, nothing happened.
+
+## 0.4.17 - 2026-09-26
+
+### Changed
+
+- **A record's parent is picked in core's `TreePicker`** (#50). It replaces the
+  indented `<select>`. The tree leaves out the record and everything under it,
+  and a "Top level" row means no parent. The form saves the parent the picker
+  shows, never one the client posts. A parent change made in another session,
+  a reload, or a promotion from spectator moves the pick with it, so a save
+  can no longer put the old parent back.
+- **Edit forms open on the language being viewed** (#50). A new entity or
+  record still opens on the main language, where its required fields are.
+- **The admin header trail names every level** (#50):
+  `Entities / <Plural> / <record> / Edit`, and `Entities / <entity> / Edit`
+  on the entity form. The entity list's section is Entities, not Modules.
+- The acting user, activity logging and the media-picker scope folder now go
+  through core (`PhoenixKitWeb.Actor`, `PhoenixKit.Activity`,
+  `Storage.ResourceFolders`) (#50). The folder hook contract is unchanged.
+- **Requires `phoenix_kit` 2.38.0 or later** (`>= 2.38.0 and < 3.0.0`).
+  Earlier cores lack the tree picker, `Utils.Tree`/`TreeQuery`,
+  `PhoenixKitWeb.Actor` and `ResourceFolders`.
+- Dependency lock: `phoenix_kit` 2.40.1, `phoenix_kit_templates` 0.2.0,
+  `phoenix` 1.8.15, `mdex` 0.14.0.
+
+### Fixed
+
+- **Two opposite re-parents no longer commit a cycle** (#50). A change of
+  parent, including a move to the top level, now runs under a per-entity
+  advisory lock. The second move waits, then its cycle check reads the
+  first one's committed parent. The cycle check is a single recursive query
+  with no depth cap.
+- A record can no longer be given a parent that is in the trash (#50). A
+  record whose parent was trashed later can still be edited.
+- A database error inside the parent checks is no longer swallowed (#50). It
+  used to let the save continue inside an already-aborted transaction.
+- After a save was refused over the parent, picking another parent now clears
+  the old error right away instead of at the next keystroke.
+
 ## 0.4.16 - 2026-09-16
 
 ### Changed

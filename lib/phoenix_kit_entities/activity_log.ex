@@ -1,48 +1,19 @@
 defmodule PhoenixKitEntities.ActivityLog do
   @moduledoc false
   # Shared activity-logging helper for entity + entity_data mutations.
-  # Wraps `PhoenixKit.Activity.log/1` with the "entities" module key.
-  #
-  # The core Activity context is optional — parent apps that don't install it
-  # will simply skip logging. We guard with `Code.ensure_loaded?/1` and a
-  # try/rescue so a logging failure never propagates back to the caller.
-
-  require Logger
+  # Hands the entry to `PhoenixKit.Activity.log/1` with the "entities" module
+  # key; core never raises, so a logging failure never reaches the caller.
 
   @module_key "entities"
 
   @doc """
-  Logs an activity entry with `module: "entities"` injected.
-
-  Never raises — swallows any error from the Activity context with a Logger
-  warning so the caller's primary mutation isn't affected.
+  Logs an activity entry with `module: "entities"` injected. Always `:ok` —
+  core logs a failure and returns it, and the caller's primary mutation
+  isn't affected.
   """
   @spec log(map()) :: :ok
   def log(attrs) when is_map(attrs) do
-    if Code.ensure_loaded?(PhoenixKit.Activity) do
-      try do
-        PhoenixKit.Activity.log(Map.put(attrs, :module, @module_key))
-      rescue
-        # Sandbox-crossing in async tests, or test DB without the activities
-        # table present — both expected, swallow silently.
-        Postgrex.Error ->
-          :ok
-
-        DBConnection.OwnershipError ->
-          :ok
-
-        error ->
-          Logger.warning(
-            "PhoenixKitEntities activity log failed: " <>
-              "#{Exception.message(error)} — attrs=" <>
-              inspect(Map.take(attrs, [:action, :resource_type, :resource_uuid]))
-          )
-      catch
-        # Settings/Activity supervisor may exit during sandbox shutdown.
-        :exit, _reason -> :ok
-      end
-    end
-
+    _ = PhoenixKit.Activity.log(Map.put(attrs, :module, @module_key))
     :ok
   end
 

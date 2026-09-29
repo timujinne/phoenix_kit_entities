@@ -16,6 +16,15 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
 
       assert html =~ "System Status"
     end
+
+    test "lives under Settings in the header trail", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, "/en/admin/settings/entities")
+
+      assert html =~ "<title>Entities</title>"
+      assert %{section: {"Settings", settings_path}, crumbs: []} = page_trail(html)
+      assert String.ends_with?(settings_path, "/admin/settings")
+    end
   end
 
   describe "enable_entities / disable_entities" do

@@ -10,8 +10,9 @@ entity are stored as *entity data* rows sharing one JSONB shape. It implements
 the `PhoenixKit.Module` behaviour, so a host app gets the admin UI, settings,
 permissions, migrations and routes by adding the dependency — no wiring.
 
-- **Depends on:** `phoenix_kit` `~> 2.26` (Hex; 2.26 is the first core with
-  `<.decimal_input>` and `Number.parse_decimal/2`), `phoenix_live_view` `~> 1.0`,
+- **Depends on:** `phoenix_kit` `>= 2.38.0 and < 3.0.0` (Hex; 2.38.0 is the
+  first core with `TreePicker`, `Utils.Tree`/`TreeQuery`, `PhoenixKitWeb.Actor`,
+  `Storage.ResourceFolders` and `mount_multilang(open_on:)`), `phoenix_live_view` `~> 1.0`,
   `gettext` `~> 1.0`. `lazy_html` is test-only (`Phoenix.LiveViewTest`'s HTML
   parser). No sibling `phoenix_kit_*` deps.
 - **Consumed by:** `phoenix_kit_catalogue` (attribute sets are MANAGED
@@ -147,9 +148,9 @@ Repo-local aliases:
 - **`enable_system/1` and `disable_system/1`** use `module_key()` rather than a
   literal, and both log a `module.entities.{enabled,disabled}` activity row.
 - **Activity logging** goes through `PhoenixKitEntities.ActivityLog.log/1`,
-  which stamps `module: "entities"`, guards `PhoenixKit.Activity` with
-  `Code.ensure_loaded?/1` and rescues, so a logging failure never crashes the
-  mutation. Notification-side wiring lives in `notify_entity_event/2` and
+  which stamps `module: "entities"` and hands the entry to core's
+  `PhoenixKit.Activity`, which never raises, so a logging failure never crashes
+  the mutation. Notification-side wiring lives in `notify_entity_event/2` and
   `notify_data_event/2`, piped after every CRUD repo call so logging only fires
   on `:ok` and an `:error` tuple flows through unchanged. Actions are
   `entity.{verb}` / `entity_data.{verb}` where verb is one of `created`,
@@ -158,7 +159,18 @@ Repo-local aliases:
   `translation_set`; module toggles use `module.entities.{enabled,disabled}`.
   `entity_data.deleted` is hard-delete and `entity_data.trashed` is
   soft-delete — keep them distinct so audit consumers can tell which ran.
-  LV call sites thread `actor_opts(socket)` so rows pin `actor_uuid`.
+  LV call sites thread `Actor.opts(socket)` (core's `PhoenixKitWeb.Actor`) so
+  rows pin `actor_uuid`.
+- **A record's parent is picked in core's `TreePicker`**, never an indented
+  flat `<select>`: `Web.DataForm` builds the tree with
+  `PhoenixKit.Utils.Tree.from_flat/2`, leaves out the record's own subtree
+  (picking into it would create a cycle); validate and save take the parent
+  from the server's `parent_pick` (set by the picker's message), never from
+  the posted form. The changeset still refuses a self, cross-entity or cyclic
+  parent sent by a crafted payload.
+- **Edit forms open on the viewing language.** The entity and entity-data forms
+  pass `open_on: :viewing_language` to `mount_multilang/2` for an existing
+  record and the main language for a new one, whose required fields live there.
 - **PII guardrail at the source:** never log `email`, `phone`, free-text
   `description` fields, raw `data` JSONB blobs, or any user-typed field. Safe
   metadata: `name`, `display_name`, `slug`, `status`, derived counts, FK uuids.
@@ -248,6 +260,29 @@ Repo-local aliases:
   type}`, `{:user_entity_limit_reached, max}`) so callers pattern-match
   locale-agnostically; LV call sites pipe the reason through
   `Errors.message/1` for the user-facing string.
+- **Relation fields** (`Relations`) store a record uuid, or a list with
+  `allow_multiple`, in the PRIMARY language's data only; `target_entity` is
+  the target's uuid (a name also resolves, and is what the mirror exports).
+  `EntityData.changeset/2` refuses only ADDED links that are not live
+  records of the target — held links are never re-checked, so a trashed or
+  vanished target never blocks saving the record that points at it.
+  "Held" means held by the CURRENT row, read `FOR UPDATE`; a stale copy's
+  links to records deleted since are silently dropped, never re-added.
+  **Lock order is target rows, then source rows**, on both sides: a save
+  locks its linked records `FOR SHARE` and then its own row, and a hard
+  delete locks the doomed rows, prunes the sources, then deletes. Keep that
+  order in any new write path, or saves and deletes can deadlock. Pruning is
+  an atomic `jsonb_set` on the current value, never a whole-map rewrite.
+  Reads skip missing/trashed targets. `FormBuilder` stays DB-free: callers
+  load `Relations.picker_contexts/3` and pass it as `opts[:relations]`.
+  Public forms never take a relation value.
+- **A mirror import is one transaction per run.** Records are validated
+  BEFORE any is written: in production, a failed write inside that
+  transaction aborts the whole run (Ecto nested-transaction semantics). The
+  test sandbox turns nested transactions into savepoints and hides this, so
+  a test passing is no proof. The internal `EntityData` options
+  (`relation_check: :defer`, `defer_notify: true`, `uuid:`) exist for the
+  importer only.
 - **Rich-text field values are sanitized on the write path** through
   `PhoenixKit.Utils.HtmlSanitizer.sanitize_rich_text_fields/2` (per language
   too) — never store raw user HTML in the `data` JSONB.
@@ -278,10 +313,11 @@ Repo-local aliases:
   the OLD translation with no runtime error. The catalogues here are edited by
   hand for that reason; `gettext_catalogue_test.exs` fails the build on any
   fuzzy entry.
-- Narrowing the core pin to a three-segment `~> 2.26.x` breaks CONSUMERS only
-  (`~> 2.26.x` excludes every 2.27+ core, so a host wanting both this module
-  and a newer core gets an unsolvable dep set). Raising the two-segment floor
-  is fine, and required whenever code starts calling a newer core API.
+- Narrowing the core pin to a three-segment `~> 2.38.x` breaks CONSUMERS only
+  (`~> 2.38.x` excludes every 2.39+ core, so a host wanting both this module
+  and a newer core gets an unsolvable dep set). Raising the floor of the
+  compound `>= 2.38.0 and < 3.0.0` pin is fine, and required whenever code
+  starts calling a newer core API.
   `core_pin_conformance_test.exs` guards it; nothing else in this repo would
   notice.
 - `Web.DataNavigator` auto-flips an entity's `sort_mode` to `"manual"` on the
@@ -303,6 +339,7 @@ lib/phoenix_kit_entities/
 ├── managed.ex                                   # Managed-blueprint guards + delete-guard registry
 ├── migrations.ex                                # Module-owned migration chain
 ├── presence.ex / presence_helpers.ex            # FIFO collaborative editing locks
+├── relations.ex                                 # relation field: checks, resolve, picker data, delete pruning, mirror refs
 ├── routes.ex                                    # Admin + public route declarations
 ├── sitemap_source.ex                            # PhoenixKit Sitemap source
 ├── url_resolver.ex                              # Shared URL-pattern resolution
@@ -342,8 +379,8 @@ Core APIs relied on: `PhoenixKit.Settings`, `RepoHelper`, `Dashboard.Tab` +
 `Dashboard.Registry`, `Users.Auth.Scope`, `Modules.Languages` and its
 `DialectMapper`, `Utils.Multilang`, `Utils.HtmlSanitizer`, `Utils.Routes`,
 `Modules.Sitemap.*`, `PubSub.Manager`, `PhoenixKitWeb.*` components and layout,
-and `PhoenixKit.Activity` — the last is optional and degrades gracefully when
-absent.
+`PhoenixKit.Activity` and `PhoenixKitWeb.Actor`, `Components.TreePicker` with
+`Utils.Tree` and `Utils.TreeQuery`, and `Storage.ResourceFolders`.
 
 ### Data model
 
@@ -372,7 +409,7 @@ All defined in `Events`, broadcast via `PhoenixKit.PubSub.Manager`.
 |---|---|---|
 | `entities_enabled` | boolean | Global on/off for the module |
 | `entities_max_per_user` | integer | Entities one user may create (default 100) |
-| `entities_allow_relations` | boolean | Relation field types enabled (default true) |
+| `entities_allow_relations` | boolean | Whether NEW relation fields may be added (default true); existing ones keep working. No settings UI |
 | `entities_file_upload` | boolean | File/image field uploads enabled (default false) |
 | `entities_mirror_path` | string | Base directory for filesystem mirroring (default `priv/entities` under the host) |
 | `sitemap_entities_pattern` | string | Global URL pattern when no per-entity one is set, e.g. `/:entity_name/:slug` |
@@ -525,6 +562,7 @@ publish has succeeded.
 - Commit messages start with an action verb (`Add`, `Update`, `Fix`, `Remove`, `Merge`). No AI attribution and no `Co-Authored-By` trailers.
 - Version bumps and CHANGELOG entries land with the release commit on upstream, not in feature PRs.
 - Review files live in `dev_docs/pull_requests/{year}/{pr_number}-{slug}/{AGENT}_REVIEW.md`, one file per reviewing agent, never edited by another agent; `FOLLOW_UP.md` records how each finding was resolved. Severities: `BUG - CRITICAL/HIGH/MEDIUM`, `IMPROVEMENT - HIGH/MEDIUM`, `NITPICK`.
+- Any other dated doc in `dev_docs/` (handoffs, reports, plans, sweeps) is named `YYYY-MM-DD-kebab-slug.md`, date FIRST, so a plain listing sorts chronologically (e.g. `dev_docs/2026-09-27-relations-handoff.md`).
 
 ## TODOs
 

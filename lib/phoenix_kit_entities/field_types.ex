@@ -29,6 +29,10 @@ defmodule PhoenixKitEntities.FieldTypes do
   - **radio**: Radio button group (single choice)
   - **checkbox**: Checkbox group (multiple choices)
 
+  ### Relation
+  - **relation**: Links to records of another entity (`target_entity`,
+    `allow_multiple`); see `PhoenixKitEntities.Relations`
+
   ## Usage Examples
 
       # Get all field types
@@ -245,6 +249,21 @@ defmodule PhoenixKitEntities.FieldTypes do
       requires_options: false,
       default_props: %{}
     },
+    # Links to records of another entity. `target_entity` holds the target
+    # entity's uuid (a name is accepted too); the value is a record uuid, or
+    # a list of them with `allow_multiple`. See `PhoenixKitEntities.Relations`.
+    "relation" => %{
+      name: "relation",
+      label: "Relation",
+      description: "Links to records of another entity",
+      category: :advanced,
+      icon: "hero-link",
+      requires_options: false,
+      default_props: %{
+        "target_entity" => nil,
+        "allow_multiple" => false
+      }
+    },
     "heading" => %{
       name: "heading",
       label: "Section Heading",
@@ -412,6 +431,8 @@ defmodule PhoenixKitEntities.FieldTypes do
   def description_for("heading"),
     do: gettext("Display-only section heading (no data)")
 
+  def description_for("relation"), do: gettext("Links to records of another entity")
+
   def description_for(type_name) when is_binary(type_name) do
     case Map.get(@field_types, type_name) do
       nil -> ""
@@ -444,6 +465,7 @@ defmodule PhoenixKitEntities.FieldTypes do
   def label_for("image"), do: gettext("Image")
   def label_for("video"), do: gettext("Video")
   def label_for("heading"), do: gettext("Section Heading")
+  def label_for("relation"), do: gettext("Relation")
 
   def label_for(type_name) when is_binary(type_name) do
     case Map.get(@field_types, type_name) do
@@ -573,10 +595,20 @@ defmodule PhoenixKitEntities.FieldTypes do
   """
   def validate_field(field) when is_map(field) do
     with {:ok, field} <- validate_required_keys(field),
-         {:ok, field} <- validate_type(field) do
+         {:ok, field} <- validate_type(field),
+         {:ok, field} <- validate_target(field) do
       validate_options(field)
     end
   end
+
+  defp validate_target(%{"type" => "relation"} = field) do
+    case field["target_entity"] do
+      target when is_binary(target) and target != "" -> {:ok, field}
+      _ -> {:error, :missing_target_entity}
+    end
+  end
+
+  defp validate_target(field), do: {:ok, field}
 
   defp validate_required_keys(field) do
     required = ["type", "key", "label"]
@@ -899,6 +931,22 @@ defmodule PhoenixKitEntities.FieldTypes do
     |> maybe_put("max_entries", Keyword.get(opts, :max_entries))
     |> maybe_put("max_file_size", Keyword.get(opts, :max_file_size))
     |> maybe_put("accept", Keyword.get(opts, :accept))
+  end
+
+  @doc """
+  Helper to create a relation field linking to records of another entity.
+  `target` is the target entity's uuid (or its name).
+
+  ## Examples
+
+      iex> PhoenixKitEntities.FieldTypes.relation_field("grades", "Grades", grade_entity.uuid, multiple: true)
+      %{"type" => "relation", "key" => "grades", "target_entity" => "0199…", "allow_multiple" => true, ...}
+  """
+  def relation_field(key, label, target, opts \\ []) when is_binary(target) do
+    "relation"
+    |> new_field(key, label, opts)
+    |> Map.put("target_entity", target)
+    |> Map.put("allow_multiple", Keyword.get(opts, :multiple, false))
   end
 
   defp maybe_put(map, _key, nil), do: map

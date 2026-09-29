@@ -26,7 +26,28 @@ defmodule PhoenixKitEntities.FormBuilder do
   - **Date Types**: date
   - **Choice Types**: select, radio, checkbox (with options)
   - **Media Types**: image, file (upload)
-  - **Relational Types**: relation (entity references)
+  - **Relational Types**: relation (links to records of another entity —
+    see "Relation fields" below)
+
+  ## Relation fields
+
+  A `relation` field draws its picker from `opts[:relations]`, a map of
+  field key to the context `PhoenixKitEntities.Relations.picker_contexts/3`
+  builds (the caller loads it, so rendering stays DB-free):
+
+    * a target with few records (`:list`) renders a checkbox list, or a
+      select for a single link;
+    * a bigger one (`:search`) renders the linked records as chips plus
+      core's `SearchPicker`, which pushes `"relation_search"` /
+      `"relation_pick"` and the chips' remove buttons `"relation_remove"`
+      (`%{"key", "uuid"}`) — the caller handles those events and writes the
+      value into the changeset (`opts[:relation_target]` is the
+      `phx-target` for the remove buttons inside a LiveComponent);
+    * on a secondary-language tab the field shows the primary language's
+      links read-only: a link is the same in every language.
+
+  Without a context the stored value still rides hidden inputs, so a save
+  never drops links the form could not draw.
 
   ## Form Generation
 
@@ -94,6 +115,7 @@ defmodule PhoenixKitEntities.FormBuilder do
   import PhoenixKitWeb.Components.Core.DecimalInput, only: [decimal_input: 1]
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
   import PhoenixKitWeb.Components.Core.FormFieldLabel, only: [label: 1]
+  import PhoenixKitWeb.Components.Core.SearchPicker, only: [search_picker: 1]
   use Gettext, backend: PhoenixKitEntities.Gettext
 
   alias PhoenixKit.Modules.Languages.DialectMapper
@@ -101,6 +123,7 @@ defmodule PhoenixKitEntities.FormBuilder do
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Number
   alias PhoenixKitEntities.FieldTypes
+  alias PhoenixKitEntities.Relations
 
   # Sentinel value for the synthetic "Other" option on radio/select/checkbox
   # fields with `"allow_other" => true`. Submitted alongside a companion
@@ -1125,24 +1148,107 @@ defmodule PhoenixKitEntities.FormBuilder do
     """
   end
 
-  # Relation Field (placeholder - not yet implemented)
+  # Relation — links to records of another entity. The picker's data
+  # comes from `opts[:relations]` (see the moduledoc); the value always
+  # rides form inputs, so validate/save read it like any other field.
   def build_field(%{"type" => "relation"} = field, changeset, opts) do
-    assigns = %{field: field, changeset: changeset, opts: opts}
+    assigns = relation_assigns(field, changeset, opts)
 
     ~H"""
     <div>
       <.label>
-        {translated_label(@field, @opts[:lang_code])}{if @field["required"] && !@opts[:primary_placeholders], do: " *"}
+        {translated_label(@field, @opts[:lang_code])}{if @field["required"] && !@secondary?, do: " *"}
       </.label>
-      <div class="border-2 border-dashed border-base-300 rounded-lg p-6 text-center bg-base-200/50">
-        <.icon name="hero-link" class="w-12 h-12 mx-auto text-base-content/40 mb-3" />
-        <p class="text-base-content/60 text-sm mb-2">
-          {gettext("Entity relations coming soon")}
-        </p>
-        <p class="text-base-content/40 text-xs">
-          {gettext("This feature is not yet available")}
-        </p>
-      </div>
+      <%= cond do %>
+        <% @secondary? -> %>
+          <.relation_chips selected={@selected} labels={@labels} />
+          <p class="text-xs text-base-content/50 mt-1">
+            {gettext("Links are the same in every language — change them in the primary language.")}
+          </p>
+        <% is_nil(@ctx) or @ctx.mode == :missing -> %>
+          <.relation_hidden_inputs name={@name} selected={@selected} multiple?={@multiple?} />
+          <.relation_chips selected={@selected} labels={@labels} />
+          <p :if={@ctx} class="text-xs text-warning mt-1">
+            {gettext("The entity this field links to no longer exists.")}
+          </p>
+        <% @ctx.mode == :list and @multiple? -> %>
+          <input type="hidden" name={@name} value="" disabled={@disabled?} />
+          <div class="flex flex-col gap-2">
+            <label
+              :for={option <- relation_list_options(@ctx.options, @selected, @labels)}
+              class="flex items-center cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                name={@name}
+                value={option.uuid}
+                class={["checkbox checkbox-primary mr-2", @opts[:input_class]]}
+                checked={option.uuid in @selected}
+                disabled={@disabled?}
+              />
+              <span class="fieldset-legend">{option.title}</span>
+              <.relation_status_badge status={option.status} />
+            </label>
+            <p :if={@ctx.options == []} class="text-sm text-base-content/60">
+              {gettext("No %{entity} records yet.", entity: @target_name)}
+            </p>
+          </div>
+        <% @ctx.mode == :list -> %>
+          <label class="select w-full">
+            <select name={@name} class={@opts[:input_class]} disabled={@disabled?}>
+              <option value="">{gettext("— None —")}</option>
+              <option
+                :for={option <- relation_list_options(@ctx.options, @selected, @labels)}
+                value={option.uuid}
+                selected={option.uuid in @selected}
+              >
+                {option.title}{if option.status != "published",
+                  do: " (#{Relations.status_label(option.status)})"}
+              </option>
+            </select>
+          </label>
+        <% true -> %>
+          <.relation_hidden_inputs name={@name} selected={@selected} multiple?={@multiple?} />
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span
+              :for={uuid <- @selected}
+              class="badge badge-lg gap-1 py-3"
+              title={relation_title(@labels, uuid)}
+            >
+              {relation_title(@labels, uuid)}
+              <.relation_status_badge status={get_in(@labels, [uuid, :status])} />
+              <button
+                :if={not @disabled?}
+                type="button"
+                class="btn btn-ghost btn-xs btn-circle"
+                phx-click="relation_remove"
+                phx-value-key={@field["key"]}
+                phx-value-uuid={uuid}
+                phx-target={@opts[:relation_target]}
+                aria-label={gettext("Remove")}
+              >
+                <.icon name="hero-x-mark" class="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+          <.search_picker
+            :if={not @disabled?}
+            id={@picker_id}
+            dropdown_id={"#{@picker_id}-dropdown"}
+            form={"#{@picker_id}-detached"}
+            search_on_focus
+            search_event="relation_search"
+            results_event="relation_results"
+            pick_event="relation_pick"
+            staged_event="relation_staged"
+            placeholder={gettext("Search %{entity}…", entity: @target_name)}
+            searching_label={gettext("Searching…")}
+            adding_label={gettext("Adding…")}
+            more_label={gettext("Load more")}
+            loading_more_label={gettext("Loading…")}
+            no_matches_label={gettext("No matches")}
+          />
+      <% end %>
       <%= if @field["description"] do %>
         <.label class="label">
           <span class="fieldset-label">{@field["description"]}</span>
@@ -1174,6 +1280,107 @@ defmodule PhoenixKitEntities.FormBuilder do
       <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
       <span>{gettext("Unknown field type: %{type}", type: @field["type"])}</span>
     </div>
+    """
+  end
+
+  @doc """
+  The DOM id of a relation field's search box, which is also the `"id"`
+  the `SearchPicker` hook sends with its events — the handler maps it back
+  to the field with this function. `id_prefix` is `build_fields/3`'s.
+  """
+  @spec relation_picker_id(String.t() | nil, String.t()) :: String.t()
+  def relation_picker_id(nil, key), do: "relation-picker-#{key}"
+  def relation_picker_id(id_prefix, key), do: "relation-picker-#{id_prefix}-#{key}"
+
+  defp relation_assigns(field, changeset, opts) do
+    key = field["key"]
+    secondary? = is_map(opts[:primary_placeholders])
+
+    value =
+      if secondary?,
+        do: Map.get(opts[:primary_placeholders], key),
+        else: get_field_value(changeset, key)
+
+    ctx = get_in(opts, [:relations, key])
+    multiple? = Relations.multiple?(field)
+    input_name = "#{changeset.data.__struct__.__schema__(:source)}[data][#{key}]"
+
+    %{
+      field: field,
+      opts: opts,
+      ctx: ctx,
+      selected: Relations.uuids(value),
+      labels: relation_ctx_labels(ctx),
+      multiple?: multiple?,
+      secondary?: secondary?,
+      disabled?: opts[:disabled] == true,
+      name: if(multiple?, do: input_name <> "[]", else: input_name),
+      picker_id: relation_picker_id(opts[:id_prefix], key),
+      target_name: relation_target_name(ctx)
+    }
+  end
+
+  defp relation_ctx_labels(%{labels: labels}), do: labels
+  defp relation_ctx_labels(_ctx), do: %{}
+
+  defp relation_target_name(%{target: %{} = target}),
+    do: target.display_name_plural || target.display_name
+
+  defp relation_target_name(_ctx), do: nil
+
+  # Every live target record, then any linked record the list does not hold
+  # (one in the trash, say) so the link stays visible and is kept on save.
+  defp relation_list_options(options, selected, labels) do
+    listed = MapSet.new(options, & &1.uuid)
+
+    extra =
+      for uuid <- selected,
+          not MapSet.member?(listed, uuid),
+          label = labels[uuid],
+          do: %{uuid: uuid, title: label.title, status: label.status}
+
+    options ++ extra
+  end
+
+  defp relation_title(labels, uuid) do
+    case labels[uuid] do
+      %{title: title} when title != "" -> title
+      _ -> gettext("Unknown record")
+    end
+  end
+
+  defp relation_hidden_inputs(%{multiple?: true} = assigns) do
+    ~H"""
+    <input type="hidden" name={@name} value="" />
+    <input :for={uuid <- @selected} type="hidden" name={@name} value={uuid} />
+    """
+  end
+
+  defp relation_hidden_inputs(assigns) do
+    ~H"""
+    <input type="hidden" name={@name} value={List.first(@selected) || ""} />
+    """
+  end
+
+  defp relation_chips(assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2">
+      <span :for={uuid <- @selected} class="badge badge-lg py-3">
+        {relation_title(@labels, uuid)}
+      </span>
+      <span :if={@selected == []} class="text-sm text-base-content/60">{gettext("—")}</span>
+    </div>
+    """
+  end
+
+  defp relation_status_badge(assigns) do
+    ~H"""
+    <span
+      :if={@status not in [nil, "published"]}
+      class={["badge badge-sm ml-2", if(@status == "trashed", do: "badge-error", else: "badge-ghost")]}
+    >
+      {Relations.status_label(@status)}
+    </span>
     """
   end
 
@@ -1284,6 +1491,11 @@ defmodule PhoenixKitEntities.FormBuilder do
       Enum.reduce(fields_definition, {%{}, %{}}, fn
         # Display-only — no data to validate or store.
         %{"type" => "heading"}, acc ->
+          acc
+
+        # A link is the same in every language: it lives in the primary
+        # language only, so a secondary tab never stores one.
+        %{"type" => "relation"}, acc ->
           acc
 
         field, {data_acc, errors_acc} ->
@@ -1428,10 +1640,22 @@ defmodule PhoenixKitEntities.FormBuilder do
   # Private Functions
 
   defp validate_field_value(field, value) do
-    with {:ok, value} <- validate_required(field, value) do
+    with {:ok, value} <- validate_required(field, blank_relation(field, value)) do
       validate_type(field, value)
     end
   end
+
+  # An empty relation control submits `""` (a select) or `[""]` (the hidden
+  # input that keeps an empty checkbox list in the params) — both mean "no
+  # link", which a required relation must refuse.
+  defp blank_relation(%{"type" => "relation"}, value) do
+    case List.wrap(value) |> Enum.reject(&(&1 in [nil, ""])) do
+      [] -> nil
+      _ -> value
+    end
+  end
+
+  defp blank_relation(_field, value), do: value
 
   # A checkbox group submitted through FieldInput's hidden fallback
   # arrives as a list that may carry the hidden "" entry — strip it
@@ -1592,6 +1816,16 @@ defmodule PhoenixKitEntities.FormBuilder do
   defp validate_type(%{"type" => type}, value)
        when type in ["image", "video"] and not is_nil(value) and value != "" do
     {:error, [gettext("must be a media file reference")]}
+  end
+
+  # Relation: the shape only (a record uuid, or a list of them). Whether the
+  # uuids are live records of the target is `EntityData.changeset/2`'s check
+  # — it needs the database, and this module stays DB-free.
+  defp validate_type(%{"type" => "relation"} = field, value) do
+    case Relations.cast_value(field, value) do
+      {:ok, value} -> {:ok, value}
+      {:error, message} -> {:error, [message]}
+    end
   end
 
   defp validate_type(_field, value), do: {:ok, value}

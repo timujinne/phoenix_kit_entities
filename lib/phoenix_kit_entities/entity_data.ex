@@ -39,6 +39,7 @@ defmodule PhoenixKitEntities.EntityData do
   - `filter_by_status/1` - Get records by status
   - `count_by_entity/1` - Count records for an entity
   - `published_records/1` - Get all published records for an entity
+  - `resolve_relations/3` - Load the records a `relation` field links to, batched
 
   ## Usage Examples
 
@@ -85,6 +86,7 @@ defmodule PhoenixKitEntities.EntityData do
   alias PhoenixKit.Utils.HtmlSanitizer
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Number
+  alias PhoenixKit.Utils.TreeQuery
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.Events
@@ -92,6 +94,7 @@ defmodule PhoenixKitEntities.EntityData do
   alias PhoenixKitEntities.FormBuilder
   alias PhoenixKitEntities.Managed
   alias PhoenixKitEntities.Mirror.Exporter
+  alias PhoenixKitEntities.Relations
   alias PhoenixKitEntities.UrlResolver
   @type t :: %__MODULE__{}
 
@@ -168,7 +171,15 @@ defmodule PhoenixKitEntities.EntityData do
   Automatically sets date_created on new records.
   """
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
-  def changeset(entity_data, attrs) do
+  def changeset(entity_data, attrs), do: changeset(entity_data, attrs, [])
+
+  # `relation_check: :defer` skips ONLY the does-each-link-exist check (shape,
+  # required and normalisation still run). The mirror importer uses it to
+  # write a run's records in one transaction and checks every link once they
+  # all exist — see `Mirror.Importer`. Not a public option.
+  @doc false
+  @spec changeset(t() | Ecto.Changeset.t(), map(), keyword()) :: Ecto.Changeset.t()
+  def changeset(entity_data, attrs, opts) do
     entity_data
     |> cast(attrs, [
       :entity_uuid,
@@ -195,7 +206,11 @@ defmodule PhoenixKitEntities.EntityData do
     |> validate_parent_not_descendant()
     |> sanitize_rich_text_data()
     |> normalize_numeric_data()
+    # Before the required check: `[""]` (an empty checkbox list's hidden
+    # input) must reach it as `[]`, which counts as missing.
+    |> normalize_relation_data()
     |> validate_data_against_entity()
+    |> check_relation_references(opts)
     # Core's v135 names this FK `fk_entity_data_entity_uuid`, not the
     # `phoenix_kit_entity_data_entity_uuid_fkey` that `foreign_key_constraint/2`
     # derives, so the bare declaration below matches a constraint that does not
@@ -246,6 +261,13 @@ defmodule PhoenixKitEntities.EntityData do
       nil ->
         add_error(changeset, :parent_uuid, gettext("parent record does not exist"))
 
+      # A parent being SET must be live. A row whose parent was trashed
+      # later keeps it, so editing its other fields is not blocked.
+      %__MODULE__{entity_uuid: ^entity_uuid, status: "trashed"} ->
+        if get_change(changeset, :parent_uuid),
+          do: add_error(changeset, :parent_uuid, gettext("parent record is in the trash")),
+          else: changeset
+
       %__MODULE__{entity_uuid: ^entity_uuid} ->
         changeset
 
@@ -258,29 +280,25 @@ defmodule PhoenixKitEntities.EntityData do
     end
   rescue
     # If the repo isn't started yet (compile-time, etc.) leave parent
-    # alone — the DB-level FK will catch a bogus id at insert time.
+    # alone — the DB-level FK will catch a bogus id at insert time. A
+    # database error is not swallowed: the check runs inside the re-parent
+    # transaction, which the error has already aborted, so answering a
+    # valid changeset would only move the crash to the write that follows.
     DBConnection.ConnectionError -> changeset
-    Postgrex.Error -> changeset
   end
 
-  # Walk up from the proposed parent toward the root; if we ever hit
-  # the row we are editing, the parent assignment would create a cycle.
-  # Only meaningful when both uuids are present and distinct (the
-  # self-parent check covers the equal case).
+  # The proposed parent's ancestors, in one recursive query
+  # (`PhoenixKit.Utils.TreeQuery`, cycle-safe, no depth cap): if the row
+  # being edited is among them, the assignment would create a cycle. Only
+  # meaningful when both uuids are present and distinct (the self-parent
+  # check covers the equal case).
   #
-  # Race window: the chain is read at *validation* time, not at commit
-  # time, with no row locks. Two concurrent edits on the same chain in
-  # opposite directions can each pass their own validator pass and then
-  # both commit, producing a cycle the DB will accept. A future fix
-  # would either (a) wrap update/2 in a transaction that re-runs the
-  # walk under `SELECT … FOR UPDATE` on the ancestor chain plus a
-  # serializing `pg_advisory_xact_lock(hashtext(entity_uuid))` to block
-  # concurrent inserts, or (b) add a Postgres BEFORE-INSERT/UPDATE
-  # trigger on `parent_uuid` that runs a recursive-CTE acyclicity
-  # check and aborts. Option (b) ships from the companion migration
-  # repo; tracked as a follow-up. The in-memory walk caps at
-  # `@max_ancestor_depth` so even if a pre-existing cycle slips
-  # through, the validator can't loop forever.
+  # The chain is read at validation time, so two edits on one chain in
+  # opposite directions (A under B, B under A) would each pass and both
+  # commit a cycle — it did, every time, on a live install. `update/3`
+  # therefore runs a re-parent in a transaction that first takes the
+  # entity's tree lock (`lock_tree/1`): the second re-parent waits, and
+  # its check then reads the first one's committed parent.
   defp validate_parent_not_descendant(changeset) do
     uuid = get_field(changeset, :uuid)
     parent_uuid = get_field(changeset, :parent_uuid)
@@ -294,7 +312,7 @@ defmodule PhoenixKitEntities.EntityData do
   end
 
   defp check_no_cycle(changeset, self_id, parent_id) do
-    if ancestor_chain_contains?(parent_id, self_id, 0) do
+    if self_id in TreeQuery.ancestor_uuids(__MODULE__, parent_id) do
       add_error(
         changeset,
         :parent_uuid,
@@ -305,24 +323,6 @@ defmodule PhoenixKitEntities.EntityData do
     end
   rescue
     DBConnection.ConnectionError -> changeset
-    Postgrex.Error -> changeset
-  end
-
-  # Bounded walk — a tree this deep is a bug, but the guard keeps the
-  # validator from looping forever if the DB somehow already has a
-  # cycle (shouldn't happen, but be defensive).
-  @max_ancestor_depth 64
-
-  defp ancestor_chain_contains?(_uuid, _target, depth) when depth >= @max_ancestor_depth,
-    do: false
-
-  defp ancestor_chain_contains?(uuid, target, depth) do
-    case repo().get(__MODULE__, uuid) do
-      nil -> false
-      %__MODULE__{parent_uuid: nil} -> false
-      %__MODULE__{parent_uuid: ^target} -> true
-      %__MODULE__{parent_uuid: next} -> ancestor_chain_contains?(next, target, depth + 1)
-    end
   end
 
   defp validate_entity_reference(changeset) do
@@ -668,8 +668,85 @@ defmodule PhoenixKitEntities.EntityData do
       type when type in ["image", "video"] ->
         validate_media_field(changeset, field_def, value)
 
+      "relation" ->
+        validate_relation_shape(changeset, field_def, value)
+
       _ ->
         changeset
+    end
+  end
+
+  # Shape only (uuids, one or many); whether each uuid is a record of the
+  # target is `normalize_and_check_relations/1`'s job, which needs the DB.
+  defp validate_relation_shape(changeset, field_def, value) do
+    case Relations.cast_value(field_def, value) do
+      {:ok, _} ->
+        changeset
+
+      {:error, message} ->
+        add_relation_error(changeset, field_def, message)
+    end
+  end
+
+  defp add_relation_error(changeset, field_def, message) do
+    add_error(
+      changeset,
+      :data,
+      gettext("field '%{label}' %{message}", label: field_def["label"], message: message)
+    )
+  end
+
+  # Relation values: each in its canonical shape (a uuid, or a list of
+  # them), and in the primary language only. See `Relations.normalize_data/2`.
+  defp normalize_relation_data(changeset) do
+    with {:ok, fields} <- relation_fields_for(changeset),
+         %{} = data <- get_field(changeset, :data) do
+      normalized = Relations.normalize_data(data, fields)
+      if normalized == data, do: changeset, else: put_change(changeset, :data, normalized)
+    else
+      _ -> changeset
+    end
+  end
+
+  # A write may only ADD links to live records of the field's target;
+  # links the stored row already holds are not re-checked, so a target
+  # trashed or gone since never blocks saving the record. Compared with the
+  # row as it is now, read under lock — see `Relations.check_references/4`.
+  defp check_relation_references(changeset, opts) do
+    with false <- opts[:relation_check] == :defer,
+         {:ok, fields} <- relation_fields_for(changeset),
+         %{} = data <- get_field(changeset, :data) do
+      record_uuid = if changeset.data.__meta__.state == :loaded, do: changeset.data.uuid
+
+      fields
+      |> Relations.check_references(data, changeset.data.data, record_uuid)
+      |> apply_reference_verdict(changeset, data)
+    else
+      _ -> changeset
+    end
+  end
+
+  defp apply_reference_verdict({:ok, drops}, changeset, _data) when drops == %{}, do: changeset
+
+  # Links the caller's stale copy held to records deleted since: dropped.
+  defp apply_reference_verdict({:ok, drops}, changeset, data) do
+    data =
+      Enum.reduce(drops, data, fn {key, gone}, acc -> Relations.remove_links(acc, key, gone) end)
+
+    put_change(changeset, :data, data)
+  end
+
+  defp apply_reference_verdict({:error, errors}, changeset, _data) do
+    Enum.reduce(errors, changeset, fn {field, message}, acc ->
+      add_relation_error(acc, field, message)
+    end)
+  end
+
+  defp relation_fields_for(changeset) do
+    with entity_uuid when is_binary(entity_uuid) <- get_field(changeset, :entity_uuid),
+         %Entities{} = entity <- Entities.get_entity(entity_uuid),
+         [_ | _] = fields <- Relations.relation_fields(entity) do
+      {:ok, fields}
     end
   end
 
@@ -929,16 +1006,25 @@ defmodule PhoenixKitEntities.EntityData do
     end
   end
 
+  # `defer_notify: true` (internal, the mirror importer): the write sits in
+  # a larger transaction that has not committed yet, so the broadcast and
+  # the mirror export are left to the caller to run after it commits.
   defp notify_data_event({:ok, %__MODULE__{} = entity_data}, :created, opts) do
-    Events.broadcast_data_created(entity_data.entity_uuid, entity_data.uuid)
-    maybe_mirror_data(entity_data)
+    unless opts[:defer_notify] do
+      Events.broadcast_data_created(entity_data.entity_uuid, entity_data.uuid)
+      maybe_mirror_data(entity_data)
+    end
+
     maybe_log_data_activity(entity_data, "entity_data.created", opts)
     {:ok, entity_data}
   end
 
   defp notify_data_event({:ok, %__MODULE__{} = entity_data}, :updated, opts) do
-    Events.broadcast_data_updated(entity_data.entity_uuid, entity_data.uuid)
-    maybe_mirror_data(entity_data)
+    unless opts[:defer_notify] do
+      Events.broadcast_data_updated(entity_data.entity_uuid, entity_data.uuid)
+      maybe_mirror_data(entity_data)
+    end
+
     maybe_log_data_activity(entity_data, "entity_data.updated", opts)
     {:ok, entity_data}
   end
@@ -1583,7 +1669,12 @@ defmodule PhoenixKitEntities.EntityData do
         |> maybe_add_created_by()
         |> maybe_add_position()
 
-      case %__MODULE__{} |> changeset(attrs) |> repo().insert() do
+      # `:uuid` — a uuid planned in advance (the mirror importer resolves
+      # links to records it has yet to write). Internal, like the other
+      # `changeset_opts/1` keys.
+      case %__MODULE__{uuid: opts[:uuid]}
+           |> changeset(attrs, changeset_opts(opts))
+           |> repo().insert() do
         {:ok, record} -> record
         {:error, changeset} -> repo().rollback(changeset)
       end
@@ -1997,8 +2088,7 @@ defmodule PhoenixKitEntities.EntityData do
         case Keyword.get(opts, :require_status) do
           nil ->
             entity_data
-            |> changeset(attrs)
-            |> repo().update()
+            |> update_in_tree(attrs, changeset_opts(opts))
             |> notify_data_event(:updated, opts)
 
           statuses when is_list(statuses) ->
@@ -2060,6 +2150,10 @@ defmodule PhoenixKitEntities.EntityData do
   defp update_with_status_guard(entity_data, attrs, statuses, opts) do
     txn =
       repo().transaction(fn ->
+        # Decided from the attrs alone: the struct the caller holds can be
+        # stale, and the write below starts from the re-read row.
+        if names_parent?(attrs), do: lock_tree(entity_data.entity_uuid)
+
         from(d in __MODULE__, where: d.uuid == ^entity_data.uuid, lock: "FOR UPDATE")
         |> repo().one()
         |> apply_status_guarded_update(statuses, attrs)
@@ -2075,6 +2169,52 @@ defmodule PhoenixKitEntities.EntityData do
       {:error, {:changeset_error, changeset}} ->
         notify_data_event({:error, changeset}, :updated, opts)
     end
+  end
+
+  # A write that gives the record a new parent runs under the entity's tree
+  # lock, so its cycle check (`validate_parent_not_descendant/1`) cannot
+  # race another re-parent. Anything else writes as it always did.
+  #
+  # Every update runs in a transaction: a relation field's reference check
+  # locks rows (`Relations.check_references/4`) and those locks must hold
+  # until the write lands.
+  defp update_in_tree(entity_data, attrs, changeset_opts) do
+    repo().transaction(fn ->
+      if reparenting?(entity_data, attrs), do: lock_tree(entity_data.entity_uuid)
+
+      case entity_data |> changeset(attrs, changeset_opts) |> repo().update() do
+        {:ok, updated} -> updated
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
+  end
+
+  defp changeset_opts(opts), do: Keyword.take(opts, [:relation_check])
+
+  # Any change of parent counts, a move to the top level included: it
+  # closes no cycle, but it must not slip past the lock the other tree
+  # writers hold.
+  defp reparenting?(%__MODULE__{parent_uuid: current}, attrs) do
+    if names_parent?(attrs) do
+      parent = Map.get(attrs, :parent_uuid, Map.get(attrs, "parent_uuid"))
+      normalize_parent(parent) != normalize_parent(current)
+    else
+      false
+    end
+  end
+
+  defp normalize_parent(parent) when parent in [nil, ""], do: nil
+  defp normalize_parent(parent), do: to_string(parent)
+
+  defp names_parent?(attrs),
+    do: Map.has_key?(attrs, :parent_uuid) or Map.has_key?(attrs, "parent_uuid")
+
+  # One re-parent at a time per entity: a transaction-scoped lock, held
+  # until the write commits.
+  defp lock_tree(entity_uuid) do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      "phoenix_kit_entities:tree:#{entity_uuid}"
+    ])
   end
 
   # `nil` covers the row having disappeared entirely between the caller
@@ -2132,14 +2272,22 @@ defmodule PhoenixKitEntities.EntityData do
         # self-FK doesn't block the parent's delete.
         nullify_trashed_children([entity_data.uuid])
 
+        # Records linking to this one through a relation field drop the
+        # link in the same transaction: lock the record, prune, then
+        # delete — the lock order a save uses too (see
+        # `Relations.prune_deleted/1`).
+        lock_rows([entity_data.uuid])
+        pruned = Relations.prune_deleted([{entity_data.uuid, entity_data.entity_uuid}])
+
         case repo().delete(entity_data) do
-          {:ok, deleted} -> deleted
+          {:ok, deleted} -> {deleted, pruned}
           {:error, changeset} -> repo().rollback(changeset)
         end
       end)
 
     case txn do
-      {:ok, deleted} ->
+      {:ok, {deleted, pruned}} ->
+        Relations.after_prune(pruned)
         notify_data_event({:ok, deleted}, :deleted, opts)
 
       {:error, :has_children} ->
@@ -2168,6 +2316,18 @@ defmodule PhoenixKitEntities.EntityData do
       else
         reraise e, __STACKTRACE__
       end
+  end
+
+  # `FOR UPDATE` on the rows about to be deleted, in uuid order; returns
+  # `[{uuid, entity_uuid}]` for the ones that exist.
+  defp lock_rows(uuids) do
+    from(d in __MODULE__,
+      where: d.uuid in ^uuids,
+      order_by: d.uuid,
+      lock: "FOR UPDATE",
+      select: {d.uuid, d.entity_uuid}
+    )
+    |> repo().all()
   end
 
   defp nullify_trashed_children(parent_uuids) when is_list(parent_uuids) do
@@ -2775,6 +2935,40 @@ defmodule PhoenixKitEntities.EntityData do
   def delete_data(entity_data, opts \\ []), do: __MODULE__.delete(entity_data, opts)
 
   @doc """
+  The records a `relation` field links to.
+
+  Given a list of records, returns `%{record_uuid => [linked_record]}`;
+  given one record, the list. The linked records are loaded in one query
+  per target entity, however many source records there are, and come in
+  the target entity's own order. Links to missing or trashed records are
+  skipped.
+
+      sizes = EntityData.list_by_entity(size_entity.uuid)
+      grades_by_size = EntityData.resolve_relations(sizes, "grades")
+      Map.get(grades_by_size, size.uuid)
+      #=> [%EntityData{title: "B/BB"}, %EntityData{title: "BB/BB"}]
+
+      EntityData.resolve_relations(size, "grades", statuses: ["published"])
+
+  Options: `:statuses` (default every status but trashed), `:lang`,
+  `:preload`. Raises `ArgumentError` when `key` is not a relation field
+  of a record's entity. See `PhoenixKitEntities.Relations.resolve/3`.
+  """
+  @spec resolve_relations([t()] | t(), String.t(), keyword()) ::
+          %{optional(String.t()) => [t()]} | [t()]
+  def resolve_relations(records, key, opts \\ []), do: Relations.resolve(records, key, opts)
+
+  @doc """
+  How many live records link to this one through a `relation` field.
+
+  Informational, like `count_external_references/2`: a permanent delete
+  goes ahead and removes the link from those records.
+  """
+  @spec count_relation_references(t()) :: non_neg_integer()
+  def count_relation_references(%__MODULE__{} = record),
+    do: Relations.count_referencing(record)
+
+  @doc """
   Counts external (parent-app) rows that reference this record.
 
   Reads `:reverse_references` from `Application.get_env/2` — a list of
@@ -2945,7 +3139,9 @@ defmodule PhoenixKitEntities.EntityData do
     # Wrap the activity-log call OUTSIDE the transaction so a logging
     # failure can't be misclassified as `:referenced_by_external`.
     case run_bulk_delete_txn(uuids) do
-      {:ok, {count, deleted}} ->
+      {:ok, {{count, deleted}, pruned}} ->
+        Relations.after_prune(pruned)
+
         # Parity with the single-record path (`notify_data_event/3`'s
         # `:deleted` clause): a bulk hard-delete is the ordinary way to
         # remove a value permanently (emptying the trash — see
@@ -2995,13 +3191,20 @@ defmodule PhoenixKitEntities.EntityData do
       # deleting, so the self-FK doesn't block.
       nullify_trashed_children(uuids)
 
+      # Lock, prune relation links to these rows, then delete — the same
+      # order as the single-record path.
+      pruned = uuids |> lock_rows() |> Relations.prune_deleted()
+
       # `select` gets the deleted rows' uuid/entity_uuid back atomically
       # with the delete — no separate SELECT, no race with a concurrent
       # delete of the same rows between two queries. (`delete_all/2` has
       # no `:returning` option — `select` in the query is how Ecto
       # returns data from a `DELETE`, same as `update_all/3`.)
-      from(d in __MODULE__, where: d.uuid in ^uuids, select: {d.uuid, d.entity_uuid})
-      |> repo().delete_all()
+      result =
+        from(d in __MODULE__, where: d.uuid in ^uuids, select: {d.uuid, d.entity_uuid})
+        |> repo().delete_all()
+
+      {result, pruned}
     end)
   rescue
     e in Postgrex.Error ->
@@ -3451,6 +3654,12 @@ defmodule PhoenixKitEntities.EntityData do
 
   defp sort_order_for_mode("manual"), do: [asc_nulls_last: :position, desc: :date_created]
   defp sort_order_for_mode(_), do: [desc: :date_created]
+
+  # The same order for another module's query over one entity's records
+  # (`Relations` lists a target's records the way this module does).
+  @doc false
+  @spec sort_order_for(String.t() | nil) :: keyword()
+  def sort_order_for(mode), do: sort_order_for_mode(mode)
 
   # Applies :lang option to a single record if present in opts
   defp maybe_resolve_lang(record, opts) when is_list(opts) do

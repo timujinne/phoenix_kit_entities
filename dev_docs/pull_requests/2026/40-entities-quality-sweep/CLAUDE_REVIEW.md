@@ -166,7 +166,7 @@ Recorded so a future reviewer doesn't re-walk them:
   and an empty entity list short-circuits.
 - **`alive_presence?/1` and `Process.alive?/1` across nodes** — the PR
   deliberately left this and documented it in-line and in
-  `dev_docs/QUALITY_SWEEP_2026-08-28.md`. Agreed it is out of scope for a
+  `dev_docs/2026-08-28-quality-sweep.md`. Agreed it is out of scope for a
   sweep: changing it changes lock-ownership semantics.
 - **`catch :exit` placement** — every added clause returns the same value as
   the `rescue` beside it (`[]`, `nil`, `true`, `default`), including the

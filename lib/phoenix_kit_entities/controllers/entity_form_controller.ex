@@ -329,9 +329,16 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     # never itself an allowed field and would otherwise be dropped.
     form_data = FormBuilder.merge_other_params(entity.fields_definition || [], form_data)
 
-    # Filter to only include allowed public form fields
+    # Filter to only include allowed public form fields. Relation fields
+    # never take a public value, even when a stale `public_form_fields`
+    # lists one: an anonymous form must not be a way to probe which record
+    # uuids exist, and the public form renders no picker for them.
     settings = entity.settings || %{}
-    allowed_fields = Map.get(settings, "public_form_fields", [])
+
+    relation_keys =
+      entity |> PhoenixKitEntities.Relations.relation_fields() |> Enum.map(& &1["key"])
+
+    allowed_fields = Map.get(settings, "public_form_fields", []) -- relation_keys
 
     filtered_data =
       form_data

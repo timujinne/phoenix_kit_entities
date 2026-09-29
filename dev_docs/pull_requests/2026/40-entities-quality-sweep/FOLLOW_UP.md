@@ -49,7 +49,7 @@ Reviewed against `main` on 2026-08-29. CLAUDE_REVIEW raised 4 findings
   couple multilang behaviour to a security boundary. Recorded in
   CLAUDE_REVIEW instead.
 - **`alive_presence?/1`'s `Process.alive?/1` across nodes** — the PR
-  documented this in-line and in `dev_docs/QUALITY_SWEEP_2026-08-28.md`.
+  documented this in-line and in `dev_docs/2026-08-28-quality-sweep.md`.
   Agreed it is out of scope for a sweep; changing it changes lock-ownership
   semantics.
 

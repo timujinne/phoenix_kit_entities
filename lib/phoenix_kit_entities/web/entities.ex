@@ -17,6 +17,7 @@ defmodule PhoenixKitEntities.Web.Entities do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitWeb.Actor
 
   @impl true
   def mount(params, _session, socket) do
@@ -36,8 +37,6 @@ defmodule PhoenixKitEntities.Web.Entities do
         :page_subtitle,
         gettext("Create and manage custom content types with dynamic fields")
       )
-      |> assign(:page_section, gettext("Modules"))
-      |> assign(:page_section_path, Routes.path("/admin/modules"))
       |> assign(:project_title, project_title)
       |> assign(:view_mode, "table")
       |> assign(:entities, [])
@@ -71,7 +70,7 @@ defmodule PhoenixKitEntities.Web.Entities do
       locale = socket.assigns[:current_locale]
       entity = Entities.get_entity!(uuid, lang: locale)
 
-      case Entities.update_entity(entity, %{status: "archived"}, actor_opts(socket)) do
+      case Entities.update_entity(entity, %{status: "archived"}, Actor.opts(socket)) do
         {:ok, _entity} ->
           socket =
             socket
@@ -96,7 +95,7 @@ defmodule PhoenixKitEntities.Web.Entities do
       locale = socket.assigns[:current_locale]
       entity = Entities.get_entity!(uuid, lang: locale)
 
-      case Entities.update_entity(entity, %{status: "published"}, actor_opts(socket)) do
+      case Entities.update_entity(entity, %{status: "published"}, Actor.opts(socket)) do
         {:ok, _entity} ->
           socket =
             socket
@@ -125,7 +124,7 @@ defmodule PhoenixKitEntities.Web.Entities do
     moved_id = params["moved_id"]
 
     if Scope.can_access_admin_area?(socket.assigns.phoenix_kit_current_scope) do
-      case Entities.reorder_entities(ordered_ids, actor_opts(socket)) do
+      case Entities.reorder_entities(ordered_ids, Actor.opts(socket)) do
         :ok ->
           {:noreply,
            socket
@@ -182,15 +181,6 @@ defmodule PhoenixKitEntities.Web.Entities do
   end
 
   # Helper Functions
-
-  # Threads the current user UUID through to context functions that
-  # accept `actor_uuid:` opts.
-  defp actor_opts(socket) do
-    case socket.assigns[:phoenix_kit_current_scope] do
-      %{user: %{uuid: uuid}} -> [actor_uuid: uuid]
-      _ -> []
-    end
-  end
 
   # Extracts the base path (without query string) from the current URL,
   # which already includes the correct locale and prefix segments.

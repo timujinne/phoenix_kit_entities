@@ -1,20 +1,13 @@
 defmodule PhoenixKitEntities.ActivityLogRescueTest do
   @moduledoc """
-  Pins the canonical rescue shape on `PhoenixKitEntities.ActivityLog.log/1`.
+  `PhoenixKitEntities.ActivityLog.log/1` hands the entry to core's
+  `PhoenixKit.Activity.log/1` with the `"entities"` module key and is
+  always `:ok`: core logs a failure and returns it, so a mutation never
+  fails on its audit row.
 
-  The publishing-module sweep surfaced that an ActivityLog wrapper that
-  catches a generic `error ->` and emits `Logger.warning(...)` produces
-  noise during async tests when sandbox-crossing raises
-  `DBConnection.OwnershipError`, and that `Postgrex.Error` arises in
-  hosts that haven't yet run V97 (the activity table). The canonical
-  shape from AGENTS.md:1947-1966 silently swallows both as `:ok`, falls
-  back to `Logger.warning` for other rescues, and adds a
-  `catch :exit, _ -> :ok` for sandbox-shutdown paths.
-
-  This test lives in its own `async: false` file because it
-  `DROP TABLE`s `phoenix_kit_activities` mid-transaction (sandbox rolls
-  it back at test exit; see AGENTS.md:374-385 "Drop tables inside the
-  sandboxed transaction").
+  This file is `async: false` because it `DROP TABLE`s
+  `phoenix_kit_activities` inside the sandboxed transaction (rolled back at
+  test exit).
   """
   use PhoenixKitEntities.DataCase, async: false
 
@@ -22,77 +15,54 @@ defmodule PhoenixKitEntities.ActivityLogRescueTest do
 
   alias PhoenixKitEntities.ActivityLog
 
-  describe "log/1 — canonical rescue shape" do
-    test "swallows Postgrex.Error silently when activities table is missing" do
-      Repo.query!("DROP TABLE IF EXISTS phoenix_kit_activities CASCADE")
+  test "an entry carries the entities module key" do
+    uuid = Ecto.UUID.generate()
 
-      log =
-        capture_log(fn ->
-          assert :ok =
-                   ActivityLog.log(%{
-                     action: "entity.created",
-                     resource_type: "entity",
-                     resource_uuid: Ecto.UUID.generate(),
-                     metadata: %{"name" => "rescue_test"}
-                   })
-        end)
+    assert :ok =
+             ActivityLog.log(%{
+               action: "entity.smoke",
+               resource_type: "entity",
+               resource_uuid: uuid
+             })
 
-      # The Postgrex.Error rescue swallows silently — no Logger.warning.
-      refute log =~ "PhoenixKitEntities activity log failed"
-    end
+    assert [["entities"]] =
+             Repo.query!(
+               "SELECT module FROM phoenix_kit_activities WHERE resource_uuid = $1::text::uuid",
+               [uuid]
+             ).rows
+  end
 
-    test "log/1 returns :ok for any well-shaped attrs map (smoke)" do
-      # Happy-path smoke — confirms the function head exists with the
-      # documented signature and doesn't raise on a routine call.
-      assert :ok =
-               ActivityLog.log(%{
-                 action: "entity.smoke",
-                 resource_type: "entity",
-                 resource_uuid: Ecto.UUID.generate()
-               })
-    end
+  test "a missing activities table is logged by core, never raised" do
+    Repo.query!("DROP TABLE IF EXISTS phoenix_kit_activities CASCADE")
 
-    test "swallows DBConnection.OwnershipError silently when called from a non-allowed process" do
-      # Spawn a separate process that has no sandbox checkout. When it
-      # calls log/1 the inner repo().insert raises
-      # DBConnection.OwnershipError. Upstream's own rescue catches the
-      # exception and returns {:error, _}, so it doesn't reach our
-      # branch — this test is the smoke that the path doesn't raise
-      # back out at us.
-      log =
-        capture_log(fn ->
-          task =
-            Task.async(fn ->
-              ActivityLog.log(%{
-                action: "entity.crossing",
-                resource_type: "entity",
-                resource_uuid: Ecto.UUID.generate()
-              })
-            end)
+    log =
+      capture_log(fn ->
+        assert :ok =
+                 ActivityLog.log(%{
+                   action: "entity.created",
+                   resource_type: "entity",
+                   resource_uuid: Ecto.UUID.generate(),
+                   metadata: %{"name" => "rescue_test"}
+                 })
+      end)
 
-          Task.await(task, 1_000)
-        end)
+    assert log =~ "Activity logging error"
+  end
 
-      refute log =~ "PhoenixKitEntities activity log failed"
-    end
+  test "a process with no sandbox connection gets :ok, not a raise" do
+    task =
+      Task.async(fn ->
+        ActivityLog.log(%{
+          action: "entity.crossing",
+          resource_type: "entity",
+          resource_uuid: Ecto.UUID.generate()
+        })
+      end)
 
-    test "logs Logger.warning for unexpected exception shapes" do
-      # Force the inner call to raise an exception type that neither our
-      # narrow rescues (Postgrex.Error / DBConnection.OwnershipError) nor
-      # the catch :exit branch swallow. Pass a struct that
-      # `Map.put(attrs, :module, ...)` accepts (any map-like value works
-      # because of the `is_map(attrs)` guard) but downstream
-      # `Entry.changeset/2` rejects with a non-Postgrex exception.
-      #
-      # `%DateTime{}` is a map and accepts Map.put — but its
-      # `__struct__` doesn't match `%PhoenixKit.Activity.Entry{}`, so
-      # `Entry.changeset/2` raises ArgumentError or KeyError before any
-      # repo call. Upstream's own rescue catches it and returns
-      # `{:error, e}` rather than raising — so our fallback rescue
-      # doesn't actually fire in this path. We assert the function
-      # still returns :ok, which is the contract.
-      now = DateTime.utc_now()
-      assert :ok = ActivityLog.log(now)
-    end
+    capture_log(fn -> assert :ok = Task.await(task, 1_000) end)
+  end
+
+  test "a map core cannot turn into an entry is :ok too" do
+    capture_log(fn -> assert :ok = ActivityLog.log(DateTime.utc_now()) end)
   end
 end

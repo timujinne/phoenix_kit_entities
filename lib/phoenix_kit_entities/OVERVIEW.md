@@ -7,7 +7,7 @@ PhoenixKit's Entities layer is a dynamic content type engine. It lets administra
 ## High-level capabilities
 
 - **Entity blueprints** – Define reusable content types (`phoenix_kit_entities`) with metadata, singular/plural labels, icon, status, JSON field schema, and optional custom settings.
-- **Dynamic fields** – 12 built-in field types (text, textarea, number, boolean, date, email, URL, select, radio, checkbox, rich text, file). Field definitions live in JSONB and are validated at creation time. *(Note: image and relation fields are defined but not yet fully implemented—UI shows "coming soon" placeholders.)*
+- **Dynamic fields** – 12 built-in field types (text, textarea, number, boolean, date, email, URL, select, radio, checkbox, rich text, file). Field definitions live in JSONB and are validated at creation time. `relation` fields link a record to records of another entity (see "Relation fields" below).
 - **Entity data records** – Store instances of an entity (`phoenix_kit_entity_data`) with slug support, status workflow (draft/published/archived), JSONB data payload, metadata, creator tracking, and timestamps.
 - **Admin UI** – LiveView dashboards for managing blueprints, browsing/creating data, filtering, and adjusting module settings.
 - **Settings + security** – Feature toggle and max entities per user are enforced; additional settings (relation/file flags, auto slugging, etc.) are persisted in `phoenix_kit_settings` but reserved for future use. All surfaces are gated behind the admin scope.
@@ -190,7 +190,42 @@ All navigation helpers use `Routes.locale_aware_path/2` (or `PhoenixKit.Utils.Ro
 - **Date/Time**: `date`
 - **Choice**: `select`, `radio`, `checkbox`
 - **Media** *(coming soon)*: `image`, `file` – defined in schema but renders placeholder UI
-- **Relations** *(coming soon)*: `relation` – defined in schema but not yet functional
+- **Relations**: `relation` – links to records of another entity (see below)
+
+### Relation fields
+
+A `relation` field links a record to records of another entity — a panel
+size to the grades it is sold in, say:
+
+```elixir
+%{
+  "type" => "relation",
+  "key" => "grades",
+  "label" => "Grades",
+  "target_entity" => grade_entity.uuid,   # or the entity's name
+  "allow_multiple" => true
+}
+# or: FieldTypes.relation_field("grades", "Grades", grade_entity.uuid, multiple: true)
+```
+
+- **Storage**: `data["grades"]` holds the linked record's uuid, or a list of
+  uuids with `allow_multiple`. Links live in the primary language only.
+- **Writes** (`EntityData.create/2`, `update/3`, the admin form): a write may
+  only ADD uuids that are live records of the target; links already held are
+  never re-checked, so trashing a target does not block saving the records
+  that point at it.
+- **Reading**: `EntityData.resolve_relations(records, "grades")` returns
+  `%{record_uuid => [linked_record]}` in the target's order, one query per
+  target entity. Missing and trashed targets are skipped; `statuses:
+  ["published"]` narrows further.
+- **Deleting a target** for good removes its uuid from every record linking
+  to it. Trashing keeps the link, so a restore brings it back.
+- **Admin UI**: up to 50 target records render as checkboxes (or a select
+  for a single link); more switch to a search box with chips. Lists and
+  readonly views show titles.
+- **Public forms** never accept relation values.
+- **Mirror export/import** writes targets by entity name and links by record
+  slug, and turns them back into local uuids on import.
 
 Each field definition is a map like:
 ```elixir
@@ -214,7 +249,7 @@ Each field definition is a map like:
 |---------|-------------|-------------|--------|
 | `entities_enabled` | Master on/off switch for the module | `/admin/modules`, `Entities.enable_system/0` | ✅ Active |
 | `entities_max_per_user` | Blueprint limit per creator | Settings UI & `Entities.get_max_per_user/0` | ✅ Active |
-| `entities_allow_relations` | Reserved for future relation field toggle | Settings UI | 🚧 Not yet enforced |
+| `entities_allow_relations` | Whether NEW relation fields may be added (existing ones keep working) | `phoenix_kit_settings` (no UI) | ✅ Active |
 | `entities_file_upload` | Reserved for future file/image upload toggle | Settings UI | 🚧 Not yet enforced |
 | `entities_auto_generate_slugs` | Reserved for optional slug generation control | Settings UI | 🚧 Not yet enforced (slugs always auto-generate) |
 | `entities_default_status` | Reserved for default status on new records | Settings UI | 🚧 Not yet enforced (defaults to "published") |

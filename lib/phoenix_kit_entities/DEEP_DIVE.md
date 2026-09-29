@@ -29,7 +29,7 @@ The PhoenixKit Entities System is a dynamic content type management system. It a
 ### Key Features
 
 - **Dynamic Schema Creation**: Create custom content types with flexible field definitions stored as JSONB
-- **12 Field Types**: Comprehensive field type support including text, textarea, email, url, number, boolean, date, select, radio, checkbox, rich text, and file. *(Image and relation fields exist in the form builder as placeholders but are not registered in FieldTypes.)*
+- **12 Field Types**: Comprehensive field type support including text, textarea, email, url, number, boolean, date, select, radio, checkbox, rich text, and file. `relation` links records to records of another entity.
 - **Admin Interfaces**: Complete CRUD interfaces for both entity definitions and entity data
 - **Dynamic Form Generation**: Forms automatically generated from entity field definitions
 - **System-Wide Toggle**: Enable/disable the entire entities system via Settings
@@ -260,13 +260,13 @@ The system supports 11 fully functional field types organized into 5 categories,
 
 > **Note**: `file` is fully registered in `FieldTypes` and can be created via `file_field/3`. `image` is defined in the form builder schema but renders a "Coming Soon" placeholder — no actual image upload functionality is implemented yet.
 
-### Relational Fields *(Coming Soon)*
+### Relational Fields
 
 | Type         | Label              | Description                           | Requires Options | Status |
 |--------------|--------------------| --------------------------------------|------------------|--------|
-| `relation`   | Relation           | Relationship to other entity records  | **Yes**          | Placeholder UI |
+| `relation`   | Relation           | Links to records of another entity    | No (`target_entity` instead) | **Registered** |
 
-> **Note**: Relation fields are defined in the schema but render "Coming Soon" placeholders. The `entities_allow_relations` setting exists but is not yet enforced.
+> A relation field names its target in `target_entity` (the entity's uuid, or its name) and stores the linked record's uuid — or a list of uuids with `"allow_multiple" => true`. `entities_allow_relations` (default `true`) gates adding NEW relation fields. The rules — write-time checks, reading with `EntityData.resolve_relations/3`, cleanup on delete — are in `PhoenixKitEntities.Relations`' moduledoc.
 
 ### Field Definition Structure
 
@@ -279,7 +279,7 @@ Each field in `fields_definition` is a map with the following structure:
   "label" => "Field Name",       # Display label (required)
   "required" => true,            # Whether field is required (optional, default: false)
   "default" => "default value",  # Default value (optional)
-  "options" => ["Option 1", "Option 2"]  # Options for choice fields (required for select/radio/checkbox; relation will also require options once implemented)
+  "options" => ["Option 1", "Option 2"]  # Options for choice fields (required for select/radio/checkbox)
 }
 ```
 
@@ -288,12 +288,12 @@ Each field in `fields_definition` is a map with the following structure:
 The `FieldTypes.validate_field/1` function validates:
 
 1. **Required Keys**: `type`, `key`, `label` must be present
-2. **Valid Type**: Type must be one of the 11 registered types (image/file/relation are not in the registry)
+2. **Valid Type**: Type must be a registered type (`FieldTypes.list_types/0`)
 3. **Options Presence**: Choice fields (select/radio/checkbox) must have options array
 4. **Options Content**: Options must be non-empty for fields that require them
 5. **Unique Keys**: Field keys must be unique within an entity (enforced at LiveView level)
 
-> **Note**: The form builder renders placeholder UI for image/file/relation types, but `FieldTypes.valid_type?/1` will reject them since they're not in the registry.
+> **Note**: A `relation` field must also name its `target_entity` (`{:error, :missing_target_entity}` otherwise).
 
 **Validation Examples:**
 
@@ -574,7 +574,7 @@ PhoenixKitEntities.FormBuilder.validate_data(entity, data_params)
 **Internal Field Rendering:**
 
 The `build_field/3` function uses pattern matching on field type to render appropriate inputs.
-Media fields (`image`, `file`) and relation fields render "Coming Soon" placeholders.
+`file` renders a placeholder in admin forms; `relation` draws its picker from `opts[:relations]` (see `FormBuilder`'s moduledoc).
 
 ---
 
@@ -1570,9 +1570,8 @@ The entities system is integrated as a module in PhoenixKit's modules page at `/
 3. **Caching**: Cache entity definitions to reduce database queries
 4. **Validation Refinement**: More comprehensive field validation rules
 5. **Type Coercion**: Automatic type conversion for field values
-6. **Relations Implementation**: Complete relation field type functionality
-7. **File Upload**: Implement actual file/image upload handlers
-8. **Rich Text Editor**: Integrate actual WYSIWYG editor (TipTap, Quill, etc.)
+6. **File Upload**: Implement actual file/image upload handlers
+7. **Rich Text Editor**: Integrate actual WYSIWYG editor (TipTap, Quill, etc.)
 
 ---
 
@@ -1727,7 +1726,7 @@ test "unique constraint on entity name"
 **Solution**: Each field key must be unique within an entity. Change the field key to a unique value.
 
 **Issue**: "Field type requires options array" error
-**Solution**: Select, radio, checkbox, and relation fields must have at least one option defined.
+**Solution**: Select, radio and checkbox fields must have at least one option defined. (A relation field needs a `target_entity` instead.)
 
 **Issue**: Entity not appearing in data navigator
 **Solution**: Ensure entity status is "published" - only published entities can have data created.

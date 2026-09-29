@@ -64,6 +64,8 @@ defmodule PhoenixKitEntities.Web.DataNavigatorLiveTest do
       refute body =~ "DN Test"
       refute body =~ "Browse and manage"
       assert page_title(view) == "DN Tests"
+      assert %{section: {"Entities", section_path}, crumbs: []} = page_trail(html)
+      assert String.ends_with?(section_path, "/admin/entities")
     end
   end
 

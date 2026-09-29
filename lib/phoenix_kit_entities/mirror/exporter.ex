@@ -22,6 +22,13 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
         ]
       }
 
+  ## Relation fields
+
+  Uuids mean nothing in another install, so relations are exported by
+  what the importer can match on: a relation field's `target_entity` is
+  the target entity's NAME, and each link is `{"slug": "<record slug>"}`
+  (a plain uuid when the linked record has no slug). The importer turns
+  both back into local uuids — see `PhoenixKitEntities.Relations`.
   """
 
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -29,6 +36,7 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.Mirror.Storage
+  alias PhoenixKitEntities.Relations
 
   @export_version "1.0"
 
@@ -154,7 +162,7 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
       "description" => entity.description,
       "icon" => entity.icon,
       "status" => to_string(entity.status),
-      "fields_definition" => entity.fields_definition,
+      "fields_definition" => Relations.export_fields(entity.fields_definition),
       "settings" => entity.settings,
       "date_created" => format_datetime(entity.date_created),
       "date_updated" => format_datetime(entity.date_updated)
@@ -186,7 +194,7 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
       "export_version" => @export_version,
       "exported_at" => UtilsDate.utc_now() |> DateTime.to_iso8601(),
       "definition" => serialize_entity(entity),
-      "data" => Enum.map(data_records, &serialize_entity_data/1)
+      "data" => serialize_records(entity, data_records)
     }
 
     if Multilang.enabled?() do
@@ -198,6 +206,18 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
     else
       base
     end
+  end
+
+  # Each record as `serialize_entity_data/1` has it, with relation links
+  # rewritten to slugs (one query for the whole entity).
+  defp serialize_records(_entity, []), do: []
+
+  defp serialize_records(entity, data_records) do
+    exported = Relations.export_data(entity, Enum.map(data_records, & &1.data))
+
+    data_records
+    |> Enum.zip(exported)
+    |> Enum.map(fn {record, data} -> %{serialize_entity_data(record) | "data" => data} end)
   end
 
   defp get_entity_data(entity) do

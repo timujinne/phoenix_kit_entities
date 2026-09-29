@@ -106,6 +106,7 @@ defmodule PhoenixKitEntities do
   alias PhoenixKitEntities.Managed
   alias PhoenixKitEntities.Mirror.Exporter
   alias PhoenixKitEntities.Mirror.Storage
+  alias PhoenixKitEntities.Relations
   @type t :: %__MODULE__{}
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}
@@ -267,20 +268,12 @@ defmodule PhoenixKitEntities do
     add_error(changeset, :fields_definition, "each field must be a map")
   end
 
-  # `FieldTypes.list_types/0` is the source of truth for every type with a
-  # real `FieldType` entry; `image`/`relation` are placeholder types that
-  # render a "coming soon" box in `FormBuilder.build_field/3` but have no
-  # `FieldType` map of their own yet, so they're appended explicitly rather
-  # than duplicating the whole list by hand (which had drifted before —
-  # this allowlist and `FieldTypes.list_types/0` are meant to be the same
-  # set of types).
+  # `FieldTypes.list_types/0` is the one allowlist: every type the admin
+  # editor can offer is a registry entry (relation joined it in 0.5.0, the
+  # last placeholder that had been appended here by hand).
   defp validate_field_type(changeset, field) do
-    # image/video graduated into the FieldTypes registry (2026-08-18);
-    # relation remains the lone placeholder appended by hand.
-    valid_types = FieldTypes.list_types() ++ ~w(relation)
-
-    if field["type"] in valid_types do
-      changeset
+    if FieldTypes.valid_type?(to_string(field["type"])) do
+      validate_relation_definition(changeset, field)
     else
       add_error(
         changeset,
@@ -288,6 +281,39 @@ defmodule PhoenixKitEntities do
         "invalid field type '#{field["type"]}' for field '#{field["key"]}'"
       )
     end
+  end
+
+  # A relation needs a target. And with `entities_allow_relations` off, no
+  # NEW relation field may be added — one the entity already had (same key,
+  # already a relation) keeps working, so switching the setting off never
+  # breaks existing data.
+  defp validate_relation_definition(changeset, %{"type" => "relation"} = field) do
+    cond do
+      not (is_binary(field["target_entity"]) and field["target_entity"] != "") ->
+        add_error(
+          changeset,
+          :fields_definition,
+          "relation field '#{field["key"]}' needs a target_entity"
+        )
+
+      existing_relation?(changeset, field["key"]) or Relations.allowed?() ->
+        changeset
+
+      true ->
+        add_error(
+          changeset,
+          :fields_definition,
+          "relation fields are turned off (entities_allow_relations); cannot add '#{field["key"]}'"
+        )
+    end
+  end
+
+  defp validate_relation_definition(changeset, _field), do: changeset
+
+  defp existing_relation?(changeset, key) do
+    (changeset.data.fields_definition || [])
+    |> List.wrap()
+    |> Enum.any?(&(is_map(&1) and &1["type"] == "relation" and &1["key"] == key))
   end
 
   defp maybe_set_timestamps(changeset) do

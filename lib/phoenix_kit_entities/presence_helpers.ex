@@ -123,7 +123,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
       # already reaps dead processes through its tracker, so this filter is
       # a local optimisation with a distributed cost. Left alone here: it
       # predates this branch and changing lock ownership semantics is not a
-      # sweep-sized change. Recorded in dev_docs/QUALITY_SWEEP_2026-08-28.md.
+      # sweep-sized change. Recorded in dev_docs/2026-08-28-quality-sweep.md.
       pid when is_pid(pid) -> Process.alive?(pid)
       _ -> true
     end

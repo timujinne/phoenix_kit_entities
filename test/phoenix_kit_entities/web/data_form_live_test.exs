@@ -53,8 +53,23 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      assert html =~ "<title>Edit DF Test</title>"
+      # `Admin Panel / Entities / DF Tests / Hello / Edit` — the record has
+      # no page of its own, so its crumb is text.
+      assert html =~ "<title>Edit</title>"
+
+      assert %{section: {"Entities", _}, crumbs: [{"DF Tests", entity_path}, {"Hello", nil}]} =
+               page_trail(html)
+
+      assert String.ends_with?(entity_path, "/admin/entities/df_test/data")
       assert html =~ ~s|value="Hello"|
+    end
+
+    test "a new record is `<entity> / New record`", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, _view, html} = live(conn, new_url(ctx.entity))
+
+      assert html =~ "<title>New record</title>"
+      assert %{section: {"Entities", _}, crumbs: [{"DF Tests", _}]} = page_trail(html)
     end
 
     test "form has phx-disable-with on submit (delta-pin C5)", %{conn: conn} = ctx do
@@ -182,6 +197,20 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       # And the record did not move on the way.
       assert EntityData.get(ctx.record.uuid).entity_uuid == ctx.entity.uuid
     end
+  end
+
+  test "a save is logged with the signed-in actor", %{conn: conn} = ctx do
+    # Not the record's creator, so a fallback to the creator cannot pass.
+    editor = Ecto.UUID.generate()
+    conn = put_test_scope(conn, fake_scope(user_uuid: editor))
+    {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
+
+    render_submit(view, "save", %{"phoenix_kit_entity_data" => %{"title" => "Attributed"}})
+
+    assert_activity_logged("entity_data.updated",
+      resource_uuid: ctx.record.uuid,
+      actor_uuid: editor
+    )
   end
 
   describe "a crafted save payload cannot write fields the form never renders" do
@@ -426,7 +455,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
       render_hook(view, "switch_language", %{"lang" => "totally-fake"})
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
 
     test "accepts a known language and remains on the form", %{conn: conn} = ctx do
@@ -435,7 +464,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
 
       # Without multilang enabled the LV no-ops; the assertion is "no crash".
       render_hook(view, "switch_language", %{"lang" => "en-US"})
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
   end
 
@@ -551,7 +580,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
       send(view.pid, {:totally_unrelated, "junk", :payload})
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
 
     test "logs at :debug level so unexpected messages stay visible in dev",
@@ -583,7 +612,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
         |> form("form", phoenix_kit_entity_data: %{title: "Updated"})
         |> render_change()
 
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
   end
 
@@ -608,7 +637,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
       render_hook(view, "reset", %{})
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
   end
 
@@ -689,7 +718,7 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
       render_hook(view, "generate_slug", %{})
-      assert page_title(view) =~ "Edit DF Test"
+      assert page_title(view) == "Edit"
     end
   end
 
@@ -1246,54 +1275,122 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      view
-      |> form("form", phoenix_kit_entity_data: %{parent_uuid: ctx.a.uuid})
-      |> render_submit()
+      pick_parent(view, ctx.a.uuid)
+      view |> form("form") |> render_submit()
+
+      assert EntityData.get(ctx.record.uuid).parent_uuid == ctx.a.uuid
+
+      assert_activity_logged("entity_data.updated",
+        resource_uuid: ctx.record.uuid,
+        actor_uuid: ctx.actor_uuid
+      )
+    end
+
+    test "the picker leaves out the record itself and everything under it", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.a))
+      view |> element("#data-parent-picker-change") |> render_click()
+
+      assert has_element?(view, ~s(#data-parent-picker [data-tree-node="root"]))
+      refute has_element?(view, ~s(#data-parent-picker [data-tree-node="#{ctx.a.uuid}"]))
+      # B is A's child: were only A's own row dropped, B would be a top-level
+      # orphan, shown under the open "Top level" row.
+      refute has_element?(view, ~s(#data-parent-picker [data-tree-node="#{ctx.b.uuid}"]))
+      refute has_element?(view, ~s(#data-parent-picker [data-tree-node="#{ctx.c.uuid}"]))
+    end
+
+    # The parent is the server's pick: a payload naming another parent —
+    # crafted, or a keystroke sent before the pick's patch arrived — is
+    # ignored. The changeset's own refusals (self, other entity, cycle,
+    # trashed) are pinned in entity_data_parent_test.exs.
+    test "a posted parent_uuid never overrides the picked parent", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
+
+      pick_parent(view, ctx.a.uuid)
+
+      render_change(view, "validate", %{
+        "phoenix_kit_entity_data" => %{"title" => "Hello", "parent_uuid" => ""}
+      })
+
+      render_hook(view, "save", %{
+        "phoenix_kit_entity_data" => %{"title" => "Hello", "parent_uuid" => ctx.other_record.uuid}
+      })
 
       assert EntityData.get(ctx.record.uuid).parent_uuid == ctx.a.uuid
     end
 
-    # For the three rejection tests below, `Phoenix.LiveViewTest.form/3`
-    # validates submitted select values against the picker's rendered
-    # options — which is exactly what the LV does for happy users.
-    # These tests simulate a bypass attempt (custom client / crafted
-    # payload) by firing the "save" event directly so the changeset
-    # layer's validations are what's exercised, not the form helper.
-    test "rejects self-parent — record cannot be its own parent",
+    test "a spectator follows the owner's pick at once", %{conn: conn} = ctx do
+      owner = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, owner_view, _html} = live(owner, edit_url(ctx.entity, ctx.record))
+
+      spectator = put_test_scope(Phoenix.ConnTest.build_conn(), fake_scope())
+      {:ok, spectator_view, _html} = live(spectator, edit_url(ctx.entity, ctx.record))
+      assert :sys.get_state(spectator_view.pid).socket.assigns.readonly?
+
+      pick_parent(owner_view, ctx.a.uuid)
+      _ = render(spectator_view)
+
+      changeset = :sys.get_state(spectator_view.pid).socket.assigns.changeset
+      assert Ecto.Changeset.get_field(changeset, :parent_uuid) == ctx.a.uuid
+      # The pick a save would write follows too.
+      assert :sys.get_state(spectator_view.pid).socket.assigns.parent_pick == ctx.a.uuid
+    end
+
+    test "a reload after another session's save takes that session's parent",
          %{conn: conn} = ctx do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      render_hook(view, "save", %{
-        "phoenix_kit_entity_data" => %{"parent_uuid" => ctx.record.uuid}
-      })
+      {:ok, _} = EntityData.update(ctx.record, %{parent_uuid: ctx.a.uuid})
+      :sys.replace_state(view.pid, &put_in(&1.socket.assigns[:lock_owner?], false))
+      send(view.pid, {:data_updated, ctx.entity.uuid, ctx.record.uuid})
+      _ = render(view)
 
-      assert is_nil(EntityData.get(ctx.record.uuid).parent_uuid)
+      assert :sys.get_state(view.pid).socket.assigns.parent_pick == ctx.a.uuid
     end
 
-    test "rejects a parent from a different entity",
-         %{conn: conn} = ctx do
+    test "a spectator promoted to owner saves the parent it now shows", %{conn: conn} = ctx do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      render_hook(view, "save", %{
-        "phoenix_kit_entity_data" => %{"parent_uuid" => ctx.other_record.uuid}
-      })
+      # Another session moved the record while this one watched, then left.
+      {:ok, _} = EntityData.update(ctx.record, %{parent_uuid: ctx.a.uuid})
+      :sys.replace_state(view.pid, &put_in(&1.socket.assigns[:lock_owner?], false))
+      send(view.pid, %Phoenix.Socket.Broadcast{event: "presence_diff", payload: %{}})
+      _ = render(view)
 
+      assert :sys.get_state(view.pid).socket.assigns.lock_owner?
+      assert :sys.get_state(view.pid).socket.assigns.parent_pick == ctx.a.uuid
+
+      view |> form("form") |> render_submit()
+      assert EntityData.get(ctx.record.uuid).parent_uuid == ctx.a.uuid
+    end
+
+    test "a new pick clears the refusal the old one earned", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
+
+      # A went to the trash after the picker's tree was built.
+      pick_parent(view, ctx.a.uuid)
+      {:ok, _} = EntityData.trash(ctx.a)
+      assert view |> form("form") |> render_submit() =~ "parent record is in the trash"
+
+      pick_parent(view, "root")
+      refute render(view) =~ "parent record is in the trash"
+
+      view |> form("form") |> render_submit()
       assert is_nil(EntityData.get(ctx.record.uuid).parent_uuid)
     end
 
-    test "rejects a parent that is the record's descendant (cycle)",
-         %{conn: conn} = ctx do
+    test "reset puts the picker back on the saved parent", %{conn: conn} = ctx do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
-      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.a))
+      {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      # A → C would form A→C→B→A.
-      render_hook(view, "save", %{
-        "phoenix_kit_entity_data" => %{"parent_uuid" => ctx.c.uuid}
-      })
+      pick_parent(view, ctx.a.uuid)
+      render_click(view, "reset", %{})
 
-      assert is_nil(EntityData.get(ctx.a.uuid).parent_uuid)
+      assert :sys.get_state(view.pid).socket.assigns.parent_pick == "root"
     end
 
     test "clearing parent_uuid (selecting None) persists nil",
@@ -1304,15 +1401,21 @@ defmodule PhoenixKitEntities.Web.DataFormLiveTest do
       conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, edit_url(ctx.entity, ctx.record))
 
-      view
-      |> form("form", phoenix_kit_entity_data: %{parent_uuid: ""})
-      |> render_submit()
+      pick_parent(view, "root")
+      view |> form("form") |> render_submit()
 
       assert is_nil(EntityData.get(ctx.record.uuid).parent_uuid)
     end
   end
 
   # ── helpers ──────────────────────────────────────────────────
+
+  # The parent is picked in core's TreePicker: open it, click the row; the
+  # picker then posts the pick through its hidden input with the form.
+  defp pick_parent(view, id) do
+    view |> element("#data-parent-picker-change") |> render_click()
+    view |> element(~s(#data-parent-picker [data-tree-node="#{id}"])) |> render_click()
+  end
 
   defp edit_url(entity, record),
     do: "/en/admin/entities/#{entity.name}/data/#{record.uuid}/edit"
