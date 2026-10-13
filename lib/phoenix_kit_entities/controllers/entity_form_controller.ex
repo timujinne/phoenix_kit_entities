@@ -7,6 +7,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   alias PhoenixKit.Users.RateLimiter
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.FormBuilder
@@ -65,7 +66,9 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
         |> put_flash(:error, gettext("Entity not found"))
         |> redirect_back(conn)
 
-      !public_form_enabled?(entity) ->
+      # An archived entity is retired: its form is off whatever the
+      # settings still say.
+      entity.status == "archived" or !public_form_enabled?(entity) ->
         conn
         |> put_flash(:error, gettext("Public form is not enabled for this entity"))
         |> redirect_back(conn)
@@ -136,8 +139,12 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     settings = entity.settings || %{}
     debug_mode = Map.get(settings, "public_form_debug_mode", false)
 
-    # Track rejected submission
-    increment_form_stats(entity, :rejected, reject_flags)
+    # Track the rejected submission — unless the rate limiter caught it:
+    # the limiter exists to bound what one client can make this endpoint
+    # do, and a write per refused request would hand that back.
+    unless Enum.any?(reject_flags, &match?({:triggered, :rate_limited, _}, &1)) do
+      increment_form_stats(entity, :rejected, reject_flags)
+    end
 
     # Check if any require error message (reject_error takes precedence)
     has_error =
@@ -247,7 +254,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   defp check_rate_limit(conn, settings, entity) do
     if Map.get(settings, "public_form_rate_limit", false) do
-      ip = get_rate_limit_ip(conn)
+      ip = IpAddress.extract_from_conn(conn)
       key = "entity_form:#{entity.uuid}:#{ip}"
 
       # Use the same Backend module used by RateLimiter
@@ -332,18 +339,14 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     # Filter to only include allowed public form fields. Relation fields
     # never take a public value, even when a stale `public_form_fields`
     # lists one: an anonymous form must not be a way to probe which record
-    # uuids exist, and the public form renders no picker for them.
+    # uuids exist, and the public form renders no picker for them. Nor do
+    # `file` fields and headings, which have no input to submit, nor
+    # `image`/`video` fields: the public form has no media picker, and a
+    # posted uuid would attach any stored file a visitor can name.
     settings = entity.settings || %{}
+    public_fields = public_fields(entity, settings)
 
-    relation_keys =
-      entity |> PhoenixKitEntities.Relations.relation_fields() |> Enum.map(& &1["key"])
-
-    allowed_fields = Map.get(settings, "public_form_fields", []) -- relation_keys
-
-    filtered_data =
-      form_data
-      |> Enum.filter(fn {key, _value} -> key in allowed_fields end)
-      |> Enum.into(%{})
+    filtered_data = Map.take(form_data, Map.keys(public_fields))
 
     # Build entity data params.
     #
@@ -387,28 +390,68 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     # Pass the actor explicitly, nil included: an anonymous submission has no
     # actor, and the activity log's fallback would otherwise file it under the
     # creator the auto-fill chose.
-    case EntityData.create(entity_data_params, actor_uuid: current_user && current_user.uuid) do
-      {:ok, _data_record} ->
-        # Track successful submission
-        increment_form_stats(entity, :submitted, security_flags)
+    with true <- within_public_bounds?(public_fields, filtered_data),
+         {:ok, _data_record} <-
+           EntityData.create(entity_data_params, actor_uuid: current_user && current_user.uuid) do
+      # Track successful submission
+      increment_form_stats(entity, :submitted, security_flags)
 
-        success_message =
-          Map.get(
-            settings,
-            "public_form_success_message",
-            gettext("Form submitted successfully!")
-          )
-
-        conn
-        |> put_flash(:info, success_message)
-        |> redirect_back(conn)
-
-      {:error, _changeset} ->
+      conn
+      |> put_flash(:info, get_success_message(entity))
+      |> redirect_back(conn)
+    else
+      _too_large_or_invalid ->
         conn
         |> put_flash(:error, gettext("There was an error submitting the form. Please try again."))
         |> redirect_back(conn)
     end
   end
+
+  @no_public_value_types ~w(relation file image video heading)
+
+  # The fields a public submission may fill, by key.
+  defp public_fields(entity, settings) do
+    allowed = Map.get(settings, "public_form_fields", [])
+
+    for %{"key" => key, "type" => type} = field <- entity.fields_definition || [],
+        key in allowed,
+        type not in @no_public_value_types,
+        into: %{},
+        do: {key, field}
+  end
+
+  # `EntityData.changeset/2` gates each value's SHAPE; nothing there bounds
+  # its size, and an admin form relies on the input's `maxlength`. An
+  # anonymous POST has no such courtesy, so the public path caps every
+  # value: the field's own `max_length` when it declares one, a flat
+  # ceiling otherwise. `max_length` counts characters, as the browser's
+  # `maxlength` does, so its byte ceiling leaves room for that many
+  # characters at four bytes each.
+  @public_value_max_bytes 20_000
+  @public_list_max_entries 100
+
+  defp within_public_bounds?(public_fields, data) do
+    Enum.all?(data, fn {key, value} -> public_value_fits?(public_fields[key], value) end)
+  end
+
+  defp public_value_fits?(field, value) when is_binary(value) do
+    case field["max_length"] do
+      max when is_integer(max) and max > 0 ->
+        byte_size(value) <= max(@public_value_max_bytes, max * 4) and
+          String.length(value) <= max
+
+      _ ->
+        byte_size(value) <= @public_value_max_bytes
+    end
+  end
+
+  defp public_value_fits?(field, value) when is_list(value) do
+    length(value) <= @public_list_max_entries and
+      Enum.all?(value, &(not is_list(&1) and public_value_fits?(field, &1)))
+  end
+
+  # Maps and other terms: the changeset's shape gate has the say.
+  defp public_value_fits?(_field, _value), do: true
 
   # SECURITY: this endpoint is un-authed by design (see the moduledoc), so
   # the request body is entirely attacker-shaped — `phoenix_kit_entity_data`
@@ -484,7 +527,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
     %{
       "source" => "public_form",
-      "ip_address" => get_client_ip(conn),
+      "ip_address" => IpAddress.extract_from_conn(conn),
       "user_agent" => capped_user_agent,
       "browser" => parse_browser(capped_user_agent),
       "os" => parse_os(capped_user_agent),
@@ -511,84 +554,12 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   defp cap_metadata_param(_value), do: nil
 
-  # Returns the client IP for storage in submission metadata.
-  # Best-effort; falls back to remote_ip when the forwarded value is
-  # missing or malformed. Distinct from `get_rate_limit_ip/1` which
-  # rejects spoofed/private values entirely so they can't multiply
-  # rate-limit buckets.
-  defp get_client_ip(conn) do
-    case parse_forwarded_for(conn) do
-      nil -> remote_ip_string(conn)
-      ip -> ip
-    end
-  end
-
-  # Returns an IP suitable for use as a rate-limit key. RFC1918 / loopback
-  # / link-local / non-IPv4 values from `X-Forwarded-For` are rejected
-  # back to the conn's `remote_ip` so an attacker can't spoof
-  # `X-Forwarded-For: 1.2.3.4` to get their own per-fake-IP bucket and
-  # bypass the per-IP limit. The conn's `remote_ip` is set by the
-  # endpoint and is the actual TCP peer.
-  defp get_rate_limit_ip(conn) do
-    case parse_forwarded_for(conn) do
-      nil -> remote_ip_string(conn)
-      ip -> if rate_limit_safe_ip?(ip), do: ip, else: remote_ip_string(conn)
-    end
-  end
-
-  defp parse_forwarded_for(conn) do
-    case get_req_header(conn, "x-forwarded-for") |> List.first() do
-      nil ->
-        nil
-
-      header ->
-        header
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-        |> case do
-          "" -> nil
-          ip -> ip
-        end
-    end
-  end
-
-  defp remote_ip_string(conn) do
-    conn.remote_ip
-    |> :inet.ntoa()
-    |> to_string()
-  end
-
-  # Strict IPv4 dotted-quad with each octet 0-255, AND rejects RFC1918
-  # ranges, loopback, link-local, and the unspecified address — those
-  # would let an internal/forwarded value fake a public IP bucket.
-  defp rate_limit_safe_ip?(ip) when is_binary(ip) do
-    Regex.match?(~r/^(?:\d{1,3}\.){3}\d{1,3}$/, ip) and not private_or_local_ip?(ip)
-  end
-
-  # Integer.parse/1 returns `{int, rest}` or `:error` instead of raising,
-  # so we can drop the rescue clause and pin the failure shape explicitly.
-  # Any non-numeric octet (e.g. "abc.def.ghi.jkl" slipping past the regex,
-  # or values overflowing int) collapses to the safe-by-default `true`.
-  defp private_or_local_ip?(ip) do
-    with [a, b, _, _] <- String.split(ip, "."),
-         {a_int, ""} <- Integer.parse(a),
-         {b_int, ""} <- Integer.parse(b) do
-      unsafe_octets?(a_int, b_int)
-    else
-      _ -> true
-    end
-  end
-
-  # RFC1918 + loopback + link-local + multicast/reserved (224+).
-  defp unsafe_octets?(0, _), do: true
-  defp unsafe_octets?(10, _), do: true
-  defp unsafe_octets?(127, _), do: true
-  defp unsafe_octets?(169, 254), do: true
-  defp unsafe_octets?(172, b) when b in 16..31, do: true
-  defp unsafe_octets?(192, 168), do: true
-  defp unsafe_octets?(a, _) when a >= 224, do: true
-  defp unsafe_octets?(_, _), do: false
+  # The client address — for the rate-limit key and the stored metadata
+  # alike — comes from core's `IpAddress.extract_from_conn/1`. It trusts
+  # `X-Forwarded-For` only when the TCP peer is a loopback or private
+  # address (a reverse proxy), and then only the LAST entry, the one that
+  # proxy appended; a visitor reaching the app directly cannot name their
+  # own address, so rotating the header buys no fresh rate-limit bucket.
 
   defp parse_browser(user_agent) do
     Enum.find_value(@browser_patterns, "Unknown", fn {pattern, name} ->
@@ -645,60 +616,28 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   defp safe_referer_path(_, _), do: nil
 
-  # Form statistics tracking
-  # Stats are stored in entity.settings under "public_form_stats".
-  # Supervised under PhoenixKit.TaskSupervisor — fire-and-forget after
-  # the response is sent. The narrow rescue lets transient `Ecto.StaleEntryError`
-  # from concurrent submissions degrade silently (next submission re-counts);
-  # everything else logs.
+  # Form statistics tracking. One atomic counter bump on the stored row
+  # (`Entities.bump_public_form_stats/2`): a visitor's submission is not an
+  # edit of the entity, so it logs no activity, tells no open editor the
+  # schema changed, and cannot overwrite a setting an admin saved meanwhile.
+  # A failed bump never fails the submission.
   defp increment_form_stats(entity, event_type, security_flags) do
-    Task.Supervisor.start_child(PhoenixKit.TaskSupervisor, fn ->
-      try do
-        current_settings = entity.settings || %{}
-        current_stats = Map.get(current_settings, "public_form_stats", %{})
+    triggers = Enum.map(security_flags, fn {:triggered, type, _action} -> "#{type}_triggers" end)
 
-        # Initialize stats structure if needed
-        updated_stats =
-          current_stats
-          |> Map.update("total_submissions", 1, &(&1 + 1))
-          |> update_event_count(event_type)
-          |> update_security_stats(security_flags)
-          |> Map.put("last_submission_at", UtilsDate.utc_now() |> DateTime.to_iso8601())
+    Entities.bump_public_form_stats(entity.uuid, [
+      "total_submissions",
+      event_counter(event_type) | triggers
+    ])
+  rescue
+    e in [DBConnection.ConnectionError, Postgrex.Error, Ecto.QueryError] ->
+      Logger.warning(
+        "[EntityFormController] form-stats update failed for entity #{entity.uuid}: " <>
+          Exception.message(e)
+      )
 
-        updated_settings = Map.put(current_settings, "public_form_stats", updated_stats)
-
-        # Update entity settings directly via Repo
-        Entities.update_entity(entity, %{"settings" => updated_settings})
-      rescue
-        Ecto.StaleEntryError ->
-          # Concurrent submission updated stats first — next one re-counts.
-          :ok
-
-        e ->
-          Logger.warning(
-            "[EntityFormController] form-stats update failed for entity #{entity.uuid}: " <>
-              Exception.message(e)
-          )
-
-          {:error, e}
-      end
-    end)
+      :error
   end
 
-  defp update_event_count(stats, :submitted) do
-    Map.update(stats, "successful_submissions", 1, &(&1 + 1))
-  end
-
-  defp update_event_count(stats, :rejected) do
-    Map.update(stats, "rejected_submissions", 1, &(&1 + 1))
-  end
-
-  defp update_security_stats(stats, []), do: stats
-
-  defp update_security_stats(stats, security_flags) do
-    Enum.reduce(security_flags, stats, fn {:triggered, type, _action}, acc ->
-      key = "#{type}_triggers"
-      Map.update(acc, key, 1, &(&1 + 1))
-    end)
-  end
+  defp event_counter(:submitted), do: "successful_submissions"
+  defp event_counter(:rejected), do: "rejected_submissions"
 end

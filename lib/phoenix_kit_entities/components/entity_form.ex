@@ -32,10 +32,9 @@ defmodule PhoenixKitEntities.Components.EntityForm do
     {form_enabled, form_fields, form_title, form_description, form_submit_text, honeypot_enabled} =
       if entity do
         settings = entity.settings || %{}
-        enabled = Map.get(settings, "public_form_enabled", false)
         fields = Map.get(settings, "public_form_fields", [])
-        # Form is only truly enabled if it's enabled AND has at least one field selected
-        actually_enabled = enabled && not Enum.empty?(fields)
+        actually_enabled = form_available?(entity, settings, fields)
+
         title = Map.get(settings, "public_form_title", "")
         description = Map.get(settings, "public_form_description", "")
         submit_text = Map.get(settings, "public_form_submit_text", gettext("Submit"))
@@ -144,6 +143,13 @@ defmodule PhoenixKitEntities.Components.EntityForm do
       <% end %>
     </div>
     """
+  end
+
+  # Enabled, with at least one field selected, on an entity that is not
+  # archived — the same three things the submit endpoint requires.
+  defp form_available?(entity, settings, fields) do
+    entity.status != "archived" and Map.get(settings, "public_form_enabled", false) == true and
+      fields != []
   end
 
   defp build_empty_changeset(entity) do

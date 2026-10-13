@@ -20,8 +20,6 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardTest do
 
   alias PhoenixKitEntities.Test.SchemaOwnerGuard
 
-  @scratch_db "i067_schema_owner_guard_scratch_entities"
-
   setup do
     admin_opts = [
       hostname: System.get_env("PGHOST", "localhost"),
@@ -31,14 +29,15 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardTest do
       database: "postgres"
     ]
 
-    {:ok, admin} = Postgrex.start_link(admin_opts)
-    Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{@scratch_db}", [])
-    Postgrex.query!(admin, "CREATE DATABASE #{@scratch_db}", [])
+    # unique_integer/1 is only unique within one VM; concurrent Mix processes
+    # (including the wiring test's subprocess) need independent random names.
+    suffix = :crypto.strong_rand_bytes(12) |> Base.encode16(case: :lower)
+    scratch_db = "entities_owner_guard_#{suffix}_test"
 
-    {:ok, scratch} = Postgrex.start_link(Keyword.put(admin_opts, :database, @scratch_db))
+    {:ok, admin} = Postgrex.start_link(admin_opts)
+    Postgrex.query!(admin, "CREATE DATABASE #{scratch_db}", [])
 
     original_pgdatabase = System.get_env("PGDATABASE")
-    System.put_env("PGDATABASE", @scratch_db)
 
     on_exit(fn ->
       case original_pgdatabase do
@@ -47,8 +46,11 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardTest do
       end
 
       {:ok, admin} = Postgrex.start_link(admin_opts)
-      Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{@scratch_db}", [])
+      Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{scratch_db}", [])
     end)
+
+    {:ok, scratch} = Postgrex.start_link(Keyword.put(admin_opts, :database, scratch_db))
+    System.put_env("PGDATABASE", scratch_db)
 
     query_fn = fn sql -> Postgrex.query!(scratch, sql, []) end
     %{query_fn: query_fn, admin: admin}

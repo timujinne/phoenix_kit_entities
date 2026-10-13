@@ -14,6 +14,9 @@ defmodule PhoenixKitEntities.Events do
 
   alias PhoenixKit.PubSub.Manager
 
+  @typedoc "What identifies a form being edited: a uuid, a name, or `{:new, slug}`."
+  @type record_key :: String.t() | atom() | {:new, String.t()}
+
   # Base topics
   @topic_entities "phoenix_kit:entities:definitions"
   @topic_data "phoenix_kit:entities:data"
@@ -23,61 +26,72 @@ defmodule PhoenixKitEntities.Events do
   ## Subscription helpers
 
   @doc "Subscribe to entity definition lifecycle events."
+  @spec subscribe_to_entities() :: :ok | {:error, term()}
   def subscribe_to_entities, do: Manager.subscribe(@topic_entities)
 
   @doc "Subscribe to entity data lifecycle events (all entities)."
+  @spec subscribe_to_all_data() :: :ok | {:error, term()}
   def subscribe_to_all_data, do: Manager.subscribe(@topic_data)
 
   @doc "Subscribe to data lifecycle events for a specific entity."
+  @spec subscribe_to_entity_data(String.t()) :: :ok | {:error, term()}
   def subscribe_to_entity_data(entity_uuid), do: Manager.subscribe(data_topic(entity_uuid))
 
   @doc "Subscribe to collaborative events for a specific entity form."
+  @spec subscribe_to_entity_form(record_key()) :: :ok | {:error, term()}
   def subscribe_to_entity_form(form_key),
     do: Manager.subscribe(entity_form_topic(form_key))
 
   @doc "Subscribe to collaborative events for a specific data record form."
+  @spec subscribe_to_data_form(String.t(), record_key()) :: :ok | {:error, term()}
   def subscribe_to_data_form(entity_uuid, record_key),
     do: Manager.subscribe(data_form_topic(entity_uuid, record_key))
 
-  @doc "Subscribe to presence updates for an entity."
-  def subscribe_to_entity_presence(entity_uuid),
-    do: Manager.subscribe(entity_presence_topic(entity_uuid))
-
-  @doc "Subscribe to presence updates for a data record."
-  def subscribe_to_data_presence(entity_uuid, data_uuid),
-    do: Manager.subscribe(data_presence_topic(entity_uuid, data_uuid))
-
   ## Entity definition lifecycle
 
+  @doc "Announce a new entity definition."
+  @spec broadcast_entity_created(String.t()) :: :ok | {:error, term()}
   def broadcast_entity_created(entity_uuid),
     do: broadcast(@topic_entities, {:entity_created, entity_uuid})
 
+  @doc "Announce a changed entity definition; open record editors revalidate against it."
+  @spec broadcast_entity_updated(String.t()) :: :ok | {:error, term()}
   def broadcast_entity_updated(entity_uuid),
     do: broadcast(@topic_entities, {:entity_updated, entity_uuid})
 
+  @doc "Announce a deleted entity definition."
+  @spec broadcast_entity_deleted(String.t()) :: :ok | {:error, term()}
   def broadcast_entity_deleted(entity_uuid),
     do: broadcast(@topic_entities, {:entity_deleted, entity_uuid})
 
   ## Entity data lifecycle
 
+  @doc "Announce a new record, on the all-data topic and the entity's own."
+  @spec broadcast_data_created(String.t(), String.t()) :: :ok | {:error, term()}
   def broadcast_data_created(entity_uuid, data_uuid) do
     message = {:data_created, entity_uuid, data_uuid}
     broadcast(@topic_data, message)
     broadcast(data_topic(entity_uuid), message)
   end
 
+  @doc "Announce a changed record, on the all-data topic and the entity's own."
+  @spec broadcast_data_updated(String.t(), String.t()) :: :ok | {:error, term()}
   def broadcast_data_updated(entity_uuid, data_uuid) do
     message = {:data_updated, entity_uuid, data_uuid}
     broadcast(@topic_data, message)
     broadcast(data_topic(entity_uuid), message)
   end
 
+  @doc "Announce a hard-deleted record, on the all-data topic and the entity's own."
+  @spec broadcast_data_deleted(String.t(), String.t()) :: :ok | {:error, term()}
   def broadcast_data_deleted(entity_uuid, data_uuid) do
     message = {:data_deleted, entity_uuid, data_uuid}
     broadcast(@topic_data, message)
     broadcast(data_topic(entity_uuid), message)
   end
 
+  @doc "Announce that an entity's records were reordered."
+  @spec broadcast_data_reordered(String.t()) :: :ok | {:error, term()}
   def broadcast_data_reordered(entity_uuid) do
     message = {:data_reordered, entity_uuid}
     broadcast(@topic_data, message)
@@ -107,6 +121,8 @@ defmodule PhoenixKitEntities.Events do
 
   ## Collaborative form editing
 
+  @doc "Send an entity form's unsaved state to the other sessions editing it."
+  @spec broadcast_entity_form_change(record_key(), map(), keyword()) :: :ok | {:error, term()}
   def broadcast_entity_form_change(form_key, payload, opts \\ []) do
     broadcast(
       entity_form_topic(form_key),
@@ -114,43 +130,14 @@ defmodule PhoenixKitEntities.Events do
     )
   end
 
+  @doc "Send a record form's unsaved state to the other sessions editing it."
+  @spec broadcast_data_form_change(String.t(), record_key(), map(), keyword()) ::
+          :ok | {:error, term()}
   def broadcast_data_form_change(entity_uuid, record_key, payload, opts \\ []) do
     broadcast(
       data_form_topic(entity_uuid, record_key),
       {:data_form_change, entity_uuid, normalize_record_key(record_key), payload,
        Keyword.get(opts, :source)}
-    )
-  end
-
-  ## State synchronization for new joiners
-
-  def broadcast_entity_form_sync_request(form_key, requester_socket_id) do
-    broadcast(
-      entity_form_topic(form_key),
-      {:entity_form_sync_request, form_key, requester_socket_id}
-    )
-  end
-
-  def broadcast_entity_form_sync_response(form_key, requester_socket_id, state) do
-    broadcast(
-      entity_form_topic(form_key),
-      {:entity_form_sync_response, form_key, requester_socket_id, state}
-    )
-  end
-
-  def broadcast_data_form_sync_request(entity_uuid, record_key, requester_socket_id) do
-    broadcast(
-      data_form_topic(entity_uuid, record_key),
-      {:data_form_sync_request, entity_uuid, normalize_record_key(record_key),
-       requester_socket_id}
-    )
-  end
-
-  def broadcast_data_form_sync_response(entity_uuid, record_key, requester_socket_id, state) do
-    broadcast(
-      data_form_topic(entity_uuid, record_key),
-      {:data_form_sync_response, entity_uuid, normalize_record_key(record_key),
-       requester_socket_id, state}
     )
   end
 
@@ -162,12 +149,6 @@ defmodule PhoenixKitEntities.Events do
 
   defp data_form_topic(entity_uuid, record_key),
     do: "#{@topic_data_forms}:#{entity_uuid}:#{normalize_record_key(record_key)}"
-
-  defp entity_presence_topic(entity_uuid),
-    do: "phoenix_kit:entities:presence:entity:#{entity_uuid}"
-
-  defp data_presence_topic(entity_uuid, data_uuid),
-    do: "phoenix_kit:entities:presence:data:#{entity_uuid}:#{data_uuid}"
 
   defp normalize_record_key({:new, slug}), do: "new-#{slug}"
   defp normalize_record_key(record_key) when is_atom(record_key), do: Atom.to_string(record_key)

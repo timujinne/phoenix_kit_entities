@@ -2923,3 +2923,133 @@ msgid "Permanently delete this record? %{count} record links to it; that link wi
 msgid_plural "Permanently delete this record? %{count} records link to it; those links will be removed. This cannot be undone."
 msgstr[0] "Permanently delete this record? %{count} record links to it; that link will be removed. This cannot be undone."
 msgstr[1] "Permanently delete this record? %{count} records link to it; those links will be removed. This cannot be undone."
+
+#: lib/phoenix_kit_entities/entity_data.ex
+#, elixir-autogen, elixir-format
+msgid "field '%{label}' must be a list of files"
+msgstr "field '%{label}' must be a list of files"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module: its slug and status cannot be changed here."
+msgstr "This blueprint is managed by another module: its slug and status cannot be changed here."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This setting is locked by the module that manages the blueprint."
+msgstr "This setting is locked by the module that manages the blueprint."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module and cannot be deleted here."
+msgstr "This blueprint is managed by another module and cannot be deleted here."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "The module that manages this blueprint could not confirm it is safe to delete."
+msgstr "The module that manages this blueprint could not confirm it is safe to delete."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This record was changed in another session. Reload and try again."
+msgstr "This record was changed in another session. Reload and try again."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Too many records in one request."
+msgstr "Too many records in one request."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Nothing was imported: %{reason}"
+msgstr "Nothing was imported: %{reason}"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "a record is not valid (%{errors})"
+msgstr "a record is not valid (%{errors})"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} record(s) link to records that do not exist"
+msgstr "%{count} record(s) link to records that do not exist"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "no export file for '%{name}'"
+msgstr "no export file for '%{name}'"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "entity '%{name}' does not exist"
+msgstr "entity '%{name}' does not exist"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import failed. %{reason}"
+msgstr "Import failed. %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import finished with %{count} error(s), the first: %{reason}"
+msgstr "Import finished with %{count} error(s), the first: %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} relation field(s) pointed at records that could not be found and were left without them: %{records}"
+msgstr "%{count} relation field(s) pointed at records that could not be found and were left without them: %{records}"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must start with a letter and contain only lowercase letters, numbers, and underscores"
+msgstr "must start with a letter and contain only lowercase letters, numbers, and underscores"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "has already been taken"
+msgstr "has already been taken"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must be a list of field definitions"
+msgstr "must be a list of field definitions"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "field missing required keys: %{keys}"
+msgstr "field missing required keys: %{keys}"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "each field must be a map"
+msgstr "each field must be a map"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "invalid field type '%{type}' for field '%{key}'"
+msgstr "invalid field type '%{type}' for field '%{key}'"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation field '%{key}' needs a target_entity"
+msgstr "relation field '%{key}' needs a target_entity"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation fields are turned off (entities_allow_relations); cannot add '%{key}'"
+msgstr "relation fields are turned off (entities_allow_relations); cannot add '%{key}'"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr "Back"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Record of the %{entity} entity"
+msgstr "Record of the %{entity} entity"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Video attached"
+msgstr "Video attached"

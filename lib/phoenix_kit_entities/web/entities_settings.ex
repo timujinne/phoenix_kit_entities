@@ -17,6 +17,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
+  alias PhoenixKitEntities.Errors
   alias PhoenixKitEntities.Events
   alias PhoenixKitEntities.Mirror.{Exporter, Importer, Storage}
   alias PhoenixKitWeb.Actor
@@ -38,7 +39,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
       |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, nil)
       |> assign(:settings, %{})
-      |> assign(:changeset, nil)
       |> assign(:entities_stats, %{})
       |> assign(:entities_list, [])
       |> assign(:mirror_path, nil)
@@ -61,13 +61,11 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     project_title = Settings.get_project_title()
 
     settings = load_settings()
-    changeset = build_changeset(settings)
 
     socket =
       socket
       |> assign(:project_title, project_title)
       |> assign(:settings, settings)
-      |> assign(:changeset, changeset)
       |> assign(:entities_stats, get_entities_stats())
       |> assign(:entities_list, Entities.list_entities_with_mirror_status())
       |> assign(:mirror_path, Storage.root_path())
@@ -76,67 +74,12 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
+  # The page renders the system switch and the mirror tools only.
   defp load_settings do
-    %{
-      entities_enabled: Entities.enabled?(),
-      auto_generate_slugs: Settings.get_setting("entities_auto_generate_slugs", "true"),
-      default_status: Settings.get_setting("entities_default_status", "draft"),
-      require_approval: Settings.get_setting("entities_require_approval", "false"),
-      max_entities_per_user: Settings.get_setting("entities_max_per_user", "100"),
-      data_retention_days: Settings.get_setting("entities_data_retention_days", "365"),
-      enable_revisions: Settings.get_setting("entities_enable_revisions", "false"),
-      enable_comments: Settings.get_setting("entities_enable_comments", "false")
-    }
+    %{entities_enabled: Entities.enabled?()}
   end
 
   @impl true
-  def handle_event("validate", %{"settings" => settings_params}, socket) do
-    changeset = build_changeset(settings_params, :validate)
-    {:noreply, assign(socket, :changeset, changeset)}
-  end
-
-  def handle_event("save", %{"settings" => settings_params}, socket) do
-    changeset = build_changeset(settings_params, :save)
-
-    if changeset.valid? do
-      try do
-        case save_settings(settings_params) do
-          :ok ->
-            # Refresh settings and stats
-            new_settings = load_settings()
-
-            socket =
-              socket
-              |> assign(:settings, new_settings)
-              |> assign(:changeset, build_changeset(new_settings))
-              |> assign(:entities_stats, get_entities_stats())
-              |> put_flash(:info, gettext("Entities settings saved successfully"))
-
-            {:noreply, socket}
-
-          {:error, reason} ->
-            socket =
-              put_flash(
-                socket,
-                :error,
-                gettext("Failed to save settings: %{reason}", reason: reason)
-              )
-
-            {:noreply, socket}
-        end
-      rescue
-        e ->
-          require Logger
-          Logger.error("Entities settings save failed: #{Exception.message(e)}")
-
-          {:noreply,
-           put_flash(socket, :error, gettext("Something went wrong. Please try again."))}
-      end
-    else
-      {:noreply, assign(socket, :changeset, changeset)}
-    end
-  end
-
   def handle_event("enable_entities", _params, socket) do
     case Entities.enable_system(Actor.opts(socket)) do
       {:ok, _setting} ->
@@ -145,7 +88,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
         socket =
           socket
           |> assign(:settings, settings)
-          |> assign(:changeset, build_changeset(settings))
           |> assign(:entities_stats, get_entities_stats())
           |> put_flash(:info, gettext("Entities system enabled successfully"))
 
@@ -171,7 +113,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
         socket =
           socket
           |> assign(:settings, settings)
-          |> assign(:changeset, build_changeset(settings))
           |> assign(:entities_stats, get_entities_stats())
           |> put_flash(:info, gettext("Entities system disabled successfully"))
 
@@ -189,34 +130,11 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  def handle_event("reset_to_defaults", _params, socket) do
-    default_settings = %{
-      entities_enabled: true,
-      auto_generate_slugs: "true",
-      default_status: "draft",
-      require_approval: "false",
-      max_entities_per_user: "unlimited",
-      data_retention_days: "365",
-      enable_revisions: "false",
-      enable_comments: "false"
-    }
-
-    changeset = build_changeset(default_settings)
-
-    socket =
-      socket
-      |> assign(:settings, default_settings)
-      |> assign(:changeset, changeset)
-      |> put_flash(:info, gettext("Settings reset to defaults (not saved yet)"))
-
-    {:noreply, socket}
-  end
-
   ## Per-Entity Mirror Events
 
   def handle_event("toggle_entity_definitions", %{"uuid" => entity_uuid}, socket) do
     with {:ok, entity} <- fetch_entity(entity_uuid),
-         {:ok, updated_entity} <- toggle_definitions_setting(entity) do
+         {:ok, updated_entity} <- toggle_definitions_setting(entity, Actor.opts(socket)) do
       maybe_export_entity(updated_entity, Entities.mirror_definitions_enabled?(updated_entity))
       {:noreply, refresh_entities_list(socket)}
     else
@@ -230,7 +148,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   def handle_event("toggle_entity_data", %{"uuid" => entity_uuid}, socket) do
     with {:ok, entity} <- fetch_entity(entity_uuid),
-         {:ok, updated_entity} <- toggle_data_setting(entity) do
+         {:ok, updated_entity} <- toggle_data_setting(entity, Actor.opts(socket)) do
       maybe_export_entity(updated_entity, Entities.mirror_data_enabled?(updated_entity))
       {:noreply, refresh_entities_list(socket)}
     else
@@ -255,7 +173,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   ## Bulk Mirror Actions
 
   def handle_event("enable_all_definitions", _params, socket) do
-    {:ok, count} = Entities.enable_all_definitions_mirror()
+    {:ok, count} = Entities.enable_all_definitions_mirror(Actor.opts(socket))
 
     # Export all entities
     socket = assign(socket, :exporting, true)
@@ -271,8 +189,8 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   def handle_event("disable_all_definitions", _params, socket) do
     # Disabling definitions also disables data
-    {:ok, _} = Entities.disable_all_data_mirror()
-    {:ok, count} = Entities.disable_all_definitions_mirror()
+    {:ok, _} = Entities.disable_all_data_mirror(Actor.opts(socket))
+    {:ok, count} = Entities.disable_all_definitions_mirror(Actor.opts(socket))
 
     socket =
       socket
@@ -284,8 +202,8 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   def handle_event("enable_all_data", _params, socket) do
     # Enabling data also requires definitions to be enabled
-    {:ok, _} = Entities.enable_all_definitions_mirror()
-    {:ok, count} = Entities.enable_all_data_mirror()
+    {:ok, _} = Entities.enable_all_definitions_mirror(Actor.opts(socket))
+    {:ok, count} = Entities.enable_all_data_mirror(Actor.opts(socket))
 
     # Export all entities with data
     socket = assign(socket, :exporting, true)
@@ -300,7 +218,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   end
 
   def handle_event("disable_all_data", _params, socket) do
-    {:ok, count} = Entities.disable_all_data_mirror()
+    {:ok, count} = Entities.disable_all_data_mirror(Actor.opts(socket))
 
     socket =
       socket
@@ -454,7 +372,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  defp toggle_definitions_setting(entity) do
+  defp toggle_definitions_setting(entity, opts) do
     new_value = !Entities.mirror_definitions_enabled?(entity)
 
     new_settings =
@@ -462,12 +380,12 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
         do: %{"mirror_definitions" => true},
         else: %{"mirror_definitions" => false, "mirror_data" => false}
 
-    Entities.update_mirror_settings(entity, new_settings)
+    Entities.update_mirror_settings(entity, new_settings, opts)
   end
 
-  defp toggle_data_setting(entity) do
+  defp toggle_data_setting(entity, opts) do
     new_value = !Entities.mirror_data_enabled?(entity)
-    Entities.update_mirror_settings(entity, %{"mirror_data" => new_value})
+    Entities.update_mirror_settings(entity, %{"mirror_data" => new_value}, opts)
   end
 
   defp maybe_export_entity(entity, true) do
@@ -534,15 +452,8 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   end
 
   def handle_info({:do_import, selections}, socket) do
-    {:ok, %{definitions: def_results, data: data_results}} = Importer.import_selected(selections)
-
-    def_created = Enum.count(def_results, &match?({:ok, :created, _}, &1))
-    def_updated = Enum.count(def_results, &match?({:ok, :updated, _}, &1))
-    def_skipped = Enum.count(def_results, &match?({:ok, :skipped, _}, &1))
-
-    data_created = Enum.count(data_results, &match?({:ok, :created, _}, &1))
-    data_updated = Enum.count(data_results, &match?({:ok, :updated, _}, &1))
-    data_skipped = Enum.count(data_results, &match?({:ok, :skipped, _}, &1))
+    {:ok, %{definitions: def_results, data: data_results} = result} =
+      Importer.import_selected(selections)
 
     socket =
       socket
@@ -551,18 +462,8 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
       |> assign(:import_selections, %{})
       |> assign(:export_stats, Storage.get_stats())
       |> assign(:entities_stats, get_entities_stats())
-      |> put_flash(
-        :info,
-        gettext(
-          "Import complete. Definitions: %{dc} created, %{du} updated, %{ds} skipped. Data: %{rc} created, %{ru} updated, %{rs} skipped.",
-          dc: def_created,
-          du: def_updated,
-          ds: def_skipped,
-          rc: data_created,
-          ru: data_updated,
-          rs: data_skipped
-        )
-      )
+      |> put_import_flash(def_results, data_results)
+      |> put_unresolved_links_flash(Map.get(result, :unresolved_links, []))
 
     {:noreply, socket}
   end
@@ -579,111 +480,71 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   # Private Functions
 
-  defp build_changeset(settings, action \\ nil) do
-    types = %{
-      entities_enabled: :boolean,
-      auto_generate_slugs: :string,
-      default_status: :string,
-      require_approval: :string,
-      max_entities_per_user: :string,
-      data_retention_days: :string,
-      enable_revisions: :string,
-      enable_comments: :string
-    }
+  # An import is one transaction per run: when a write fails, every result
+  # comes back `{:rolled_back, _}` and nothing was saved — that must not
+  # read as "complete, 0 created".
+  defp put_import_flash(socket, def_results, data_results) do
+    errors = for {:error, reason} <- def_results ++ data_results, do: reason
 
-    required = [:auto_generate_slugs, :default_status]
+    case {errors, Enum.find(errors, &match?({:rolled_back, _}, &1))} do
+      {[], _} ->
+        put_flash(socket, :info, import_counts_text(def_results, data_results))
 
-    changeset =
-      {settings, types}
-      |> Ecto.Changeset.cast(settings, Map.keys(types))
-      |> Ecto.Changeset.validate_required(required)
-      |> Ecto.Changeset.validate_inclusion(:default_status, ["draft", "published", "archived"])
-      |> Ecto.Changeset.validate_inclusion(:auto_generate_slugs, ["true", "false"])
-      |> Ecto.Changeset.validate_inclusion(:require_approval, ["true", "false"])
-      |> Ecto.Changeset.validate_inclusion(:enable_revisions, ["true", "false"])
-      |> Ecto.Changeset.validate_inclusion(:enable_comments, ["true", "false"])
-      |> validate_max_entities_per_user()
-      |> validate_data_retention_days()
+      {_, {:rolled_back, _} = rolled_back} ->
+        put_flash(
+          socket,
+          :error,
+          gettext("Import failed. %{reason}", reason: Errors.message(rolled_back))
+        )
 
-    if action do
-      Map.put(changeset, :action, action)
-    else
-      changeset
-    end
-  end
-
-  defp validate_max_entities_per_user(changeset) do
-    case Ecto.Changeset.get_field(changeset, :max_entities_per_user) do
-      "unlimited" ->
-        changeset
-
-      value when is_binary(value) ->
-        case Integer.parse(value) do
-          {num, ""} when num > 0 ->
-            changeset
-
-          _ ->
-            Ecto.Changeset.add_error(
-              changeset,
-              :max_entities_per_user,
-              gettext("must be 'unlimited' or a positive integer")
-            )
-        end
-
-      _ ->
-        Ecto.Changeset.add_error(
-          changeset,
-          :max_entities_per_user,
-          gettext("must be 'unlimited' or a positive integer")
+      {[first | _], nil} ->
+        socket
+        |> put_flash(:info, import_counts_text(def_results, data_results))
+        |> put_flash(
+          :error,
+          gettext("Import finished with %{count} error(s), the first: %{reason}",
+            count: length(errors),
+            reason: Errors.message(first)
+          )
         )
     end
   end
 
-  defp validate_data_retention_days(changeset) do
-    case Ecto.Changeset.get_field(changeset, :data_retention_days) do
-      value when is_binary(value) ->
-        case Integer.parse(value) do
-          {num, ""} when num > 0 ->
-            changeset
+  defp import_counts_text(def_results, data_results) do
+    count = fn results, status -> Enum.count(results, &match?({:ok, ^status, _}, &1)) end
 
-          _ ->
-            Ecto.Changeset.add_error(
-              changeset,
-              :data_retention_days,
-              gettext("must be a positive integer")
-            )
-        end
-
-      _ ->
-        Ecto.Changeset.add_error(
-          changeset,
-          :data_retention_days,
-          gettext("must be a positive integer")
-        )
-    end
+    gettext(
+      "Import complete. Definitions: %{dc} created, %{du} updated, %{ds} skipped. Data: %{rc} created, %{ru} updated, %{rs} skipped.",
+      dc: count.(def_results, :created),
+      du: count.(def_results, :updated),
+      ds: count.(def_results, :skipped),
+      rc: count.(data_results, :created),
+      ru: count.(data_results, :updated),
+      rs: count.(data_results, :skipped)
+    )
   end
 
-  defp save_settings(settings_params) do
-    settings_to_save = [
-      {"entities_auto_generate_slugs", Map.get(settings_params, "auto_generate_slugs", "true")},
-      {"entities_default_status", Map.get(settings_params, "default_status", "draft")},
-      {"entities_require_approval", Map.get(settings_params, "require_approval", "false")},
-      {"entities_max_per_user", Map.get(settings_params, "max_entities_per_user", "100")},
-      {"entities_data_retention_days", Map.get(settings_params, "data_retention_days", "365")},
-      {"entities_enable_revisions", Map.get(settings_params, "enable_revisions", "false")},
-      {"entities_enable_comments", Map.get(settings_params, "enable_comments", "false")}
-    ]
+  # Links to records that are neither in the import nor in the database
+  # were left out of the records that carried them.
+  @unresolved_links_shown 5
 
-    try do
-      Enum.each(settings_to_save, fn {key, value} ->
-        Settings.update_setting(key, value)
-      end)
+  defp put_unresolved_links_flash(socket, []), do: socket
 
-      :ok
-    rescue
-      e ->
-        {:error, Exception.message(e)}
-    end
+  defp put_unresolved_links_flash(socket, unresolved) do
+    records =
+      unresolved
+      |> Enum.take(@unresolved_links_shown)
+      |> Enum.map_join(", ", &"#{&1.entity}/#{&1.slug} (#{&1.field})")
+
+    put_flash(
+      socket,
+      :warning,
+      gettext(
+        "%{count} relation field(s) pointed at records that could not be found and were left without them: %{records}",
+        count: length(unresolved),
+        records: records
+      )
+    )
   end
 
   defp get_entities_stats do
@@ -712,36 +573,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   def setting_status_text(enabled) do
     if enabled, do: gettext("Enabled"), else: gettext("Disabled")
-  end
-
-  def format_retention_period(days) do
-    case Integer.parse(days) do
-      {num, ""} when num >= 365 ->
-        years = div(num, 365)
-        remainder = rem(num, 365)
-
-        if remainder == 0 do
-          ngettext("%{count} year", "%{count} years", years, count: years)
-        else
-          gettext("%{years} year(s), %{days} day(s)", years: years, days: remainder)
-        end
-
-      {num, ""} when num >= 30 ->
-        months = div(num, 30)
-        remainder = rem(num, 30)
-
-        if remainder == 0 do
-          ngettext("%{count} month", "%{count} months", months, count: months)
-        else
-          gettext("%{months} month(s), %{days} day(s)", months: months, days: remainder)
-        end
-
-      {num, ""} ->
-        ngettext("%{count} day", "%{count} days", num, count: num)
-
-      _ ->
-        days
-    end
   end
 
   # Build default import selections based on preview

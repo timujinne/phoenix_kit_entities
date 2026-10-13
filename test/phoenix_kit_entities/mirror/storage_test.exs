@@ -15,22 +15,17 @@ defmodule PhoenixKitEntities.Mirror.StorageTest do
 
   alias PhoenixKit.Settings
   alias PhoenixKitEntities.Mirror.Storage
+  alias PhoenixKitEntities.Test.MirrorDir
 
-  @tmp_root Path.join(System.tmp_dir!(), "phoenix_kit_entities_storage_test")
+  @tmp_root MirrorDir.path("storage_test")
 
   setup do
     File.rm_rf!(@tmp_root)
     File.mkdir_p!(@tmp_root)
 
-    # Redirect Storage.root_path/0 into our tmp dir for the duration of
-    # the test. The containment check rejects paths outside the parent
-    # app root in production; in tests we set entities_mirror_path to
-    # an absolute path that the boundary check may reject. When that
-    # happens Storage falls back to default_path/0, which still ends
-    # up in priv/entities under the test build dir — so we set
-    # `entities_mirror_path` to a path *inside* default_path/0's parent
-    # to keep the containment guard happy.
-    {:ok, _} = Settings.update_setting("entities_mirror_path", @tmp_root)
+    # A scratch root inside the containment boundary, so `root_path/0`
+    # really resolves to it (see `Test.MirrorDir`).
+    MirrorDir.use!(@tmp_root)
 
     on_exit(fn -> File.rm_rf!(@tmp_root) end)
 

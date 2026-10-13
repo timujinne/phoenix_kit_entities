@@ -144,7 +144,11 @@ defmodule PhoenixKitEntities.Relations do
     end
   end
 
-  defp uuid?(value) when is_binary(value), do: match?({:ok, _}, Ecto.UUID.cast(value))
+  # The textual form only: `Ecto.UUID.cast/1` also takes any raw 16-byte
+  # binary.
+  defp uuid?(value) when is_binary(value),
+    do: byte_size(value) == 36 and match?({:ok, _}, Ecto.UUID.cast(value))
+
   defp uuid?(_), do: false
 
   # ── Target entities ──────────────────────────────────────────────

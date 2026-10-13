@@ -65,14 +65,16 @@ admin can restore later or permanently delete once references clear.
 
 **Public API:**
 
-- `EntityData.trash/2` — flips status to `"trashed"`. Refuses
+- `EntityData.trash/2` — flips status to `"trashed"` and stashes the
+  status the row leaves in `metadata["trashed_from_status"]`. Refuses
   `{:error, :already_trashed}` for already-trashed rows. Logs
   `entity_data.trashed`.
-- `EntityData.restore_from_trash/2` — flips trashed → published.
+- `EntityData.restore_from_trash/2` — returns the row to its stashed
+  status (`"draft"` when there is no stash) and consumes the stash.
   Refuses `{:error, :not_trashed}` for non-trashed rows. Logs
   `entity_data.restored`.
 - `EntityData.bulk_trash/2` + `bulk_restore_from_trash/2` — batched
-  versions; emit ONE `entity_data.bulk_trashed` /
+  versions with the same stash rule; emit ONE `entity_data.bulk_trashed` /
   `entity_data.bulk_restored` audit row per call. Skip already-state
   rows via the WHERE clause.
 - `EntityData.list_trashed_by_entity/2` + `trashed_count/1` — surface

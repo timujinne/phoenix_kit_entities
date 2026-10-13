@@ -25,6 +25,9 @@ defmodule PhoenixKitEntities.Mirror.Storage do
   The export path can be configured via settings:
   - `entities_mirror_path` - Custom path (empty = use default priv/entities/)
 
+  `with_root/2` pins a different directory for one run in the calling
+  process, without touching the setting.
+
   """
 
   require Logger
@@ -88,6 +91,8 @@ defmodule PhoenixKitEntities.Mirror.Storage do
   # Path Resolution
   # ============================================================================
 
+  @root_override {__MODULE__, :root_override}
+
   @doc """
   Returns the root path for entity mirror storage.
 
@@ -102,6 +107,37 @@ defmodule PhoenixKitEntities.Mirror.Storage do
   """
   @spec root_path() :: String.t()
   def root_path do
+    case Process.get(@root_override) do
+      nil -> configured_root_path()
+      path -> path
+    end
+  end
+
+  @doc """
+  Runs `fun` with the mirror root pinned to `path` for the calling process
+  only; every `Storage` call made inside it reads and writes that directory.
+
+  For a one-off run against an explicit directory (the mix tasks'
+  `--input` / `--output`). It changes no setting, and the path is NOT held
+  to the containment rule `root_path/0` applies to the
+  `entities_mirror_path` setting: that rule bounds what a value edited in
+  the web UI can make the server touch, while a path passed here was
+  chosen by whoever is running code on the box.
+  """
+  @spec with_root(String.t(), (-> result)) :: result when result: var
+  def with_root(path, fun) when is_binary(path) and is_function(fun, 0) do
+    previous = Process.put(@root_override, Path.expand(path))
+
+    try do
+      fun.()
+    after
+      if previous,
+        do: Process.put(@root_override, previous),
+        else: Process.delete(@root_override)
+    end
+  end
+
+  defp configured_root_path do
     case Settings.get_setting("entities_mirror_path", "") do
       path when is_binary(path) and byte_size(path) > 0 ->
         contained_path(path) || default_path()

@@ -290,8 +290,40 @@ Admin routes are registered via `PhoenixKitEntities.Routes` (returned by `route_
 | `/admin/entities/:id/edit` | `Web.EntityForm` | Edit entity definition |
 | `/admin/entities/:name/data` | `Web.DataNavigator` | Browse entity records |
 | `/admin/entities/:name/data/new` | `Web.DataForm` | Create record |
-| `/admin/entities/:name/data/:uuid` | `Web.DataForm` | Edit record |
+| `/admin/entities/:name/data/:uuid` | `Web.DataShow` | View a record (read-only, with Edit / Back) |
+| `/admin/entities/:name/data/:uuid/edit` | `Web.DataForm` | Edit record |
 | `/admin/settings/entities` | `Web.EntitiesSettings` | Module settings |
+
+### Linking a public page to its admin editor
+
+A host page that renders a record can offer admins a one-click "Edit" entry in
+the avatar menu. `PhoenixKitEntities.admin_edit_path/2,3` builds the target and
+core's `PhoenixKitWeb.AdminEditHelper` shows it only to a scope that can open
+the admin area **and** holds the `"entities"` permission (the module's
+`permission_metadata/0` key):
+
+```elixir
+def handle_params(%{"slug" => slug}, _uri, socket) do
+  # Both lookups return nil for an unknown name or slug — handle that first.
+  with %{} = entity <- PhoenixKitEntities.get_entity_by_name("product"),
+       %{} = record <- PhoenixKitEntities.EntityData.get_by_slug(entity.uuid, slug) do
+    socket =
+      PhoenixKitWeb.AdminEditHelper.assign_admin_edit(
+        socket,
+        PhoenixKitEntities.admin_edit_path(entity, record),
+        permission: "entities"
+      )
+
+    {:noreply, assign(socket, :record, record)}
+  else
+    nil -> {:noreply, push_navigate(socket, to: ~p"/")}
+  end
+end
+```
+
+Both arguments accept the struct or a bare value (entity name, record uuid);
+`admin_edit_path/3` takes `locale:` like `PhoenixKit.Utils.Routes.path/2`. It
+raises `ArgumentError` for a name or id that could not be a path segment.
 
 ## Multi-language support
 

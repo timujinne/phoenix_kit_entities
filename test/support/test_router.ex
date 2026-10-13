@@ -33,7 +33,7 @@ defmodule PhoenixKitEntities.Test.Router do
       live("/:id/edit", EntityForm, :edit, as: :entity_edit)
       live("/:entity_slug/data", DataNavigator, :entity, as: :data_navigator)
       live("/:entity_slug/data/new", DataForm, :new, as: :data_new)
-      live("/:entity_slug/data/:uuid", DataForm, :show, as: :data_show)
+      live("/:entity_slug/data/:uuid", DataShow, :show, as: :data_show)
       live("/:entity_slug/data/:uuid/edit", DataForm, :edit, as: :data_edit)
     end
   end
@@ -62,6 +62,19 @@ defmodule PhoenixKitEntities.Test.Router do
       on_mount: {PhoenixKitEntities.Test.Hooks, :assign_scope} do
       live("/", Entities, :index, as: :entities_pk)
       live("/:entity_slug/data", DataNavigator, :entity, as: :data_navigator_pk)
+    end
+  end
+
+  # Core builds primary-language admin paths WITHOUT a locale segment
+  # (`/phoenix_kit/admin/...`), so the same patches also land here.
+  scope "/phoenix_kit/admin/entities", PhoenixKitEntities.Web do
+    pipe_through(:browser)
+
+    live_session :entities_test_pk_prefixless,
+      layout: {PhoenixKitEntities.Test.Layouts, :app},
+      on_mount: {PhoenixKitEntities.Test.Hooks, :assign_scope} do
+      live("/", Entities, :index, as: :entities_pk_bare)
+      live("/:entity_slug/data", DataNavigator, :entity, as: :data_navigator_pk_bare)
     end
   end
 end

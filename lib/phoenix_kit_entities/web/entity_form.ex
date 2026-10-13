@@ -344,6 +344,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         |> assign(:field_error, nil)
         |> assign(:show_icon_picker, false)
         |> assign(:delete_confirm_index, nil)
+        |> assign(:form_stats_reset?, false)
         |> put_flash(:info, gettext("Changes reset to last saved state"))
 
       reply_with_broadcast(socket)
@@ -368,11 +369,6 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       )
 
     reply_with_broadcast(socket)
-  end
-
-  def handle_event("stop_propagation", _params, socket) do
-    # This event does nothing - it just prevents the click from propagating to the backdrop
-    {:noreply, socket}
   end
 
   def handle_event("generate_entity_slug", _params, socket) do
@@ -739,7 +735,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
       # Update the entity with new settings
       updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = Entities.change_entity(updated_entity)
+      changeset = settings_changeset(socket, updated_entity)
 
       socket =
         socket
@@ -778,7 +774,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       if setting_name do
         updated_settings = Map.put(current_settings, setting_name, value)
         updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-        changeset = Entities.change_entity(updated_entity)
+        changeset = settings_changeset(socket, updated_entity)
 
         socket =
           socket
@@ -809,7 +805,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
       updated_settings = Map.put(current_settings, "public_form_fields", updated_fields)
       updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = Entities.change_entity(updated_entity)
+      changeset = settings_changeset(socket, updated_entity)
 
       socket =
         socket
@@ -836,7 +832,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
       updated_settings = Map.put(current_settings, setting_key, !current_value)
       updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = Entities.change_entity(updated_entity)
+      changeset = settings_changeset(socket, updated_entity)
 
       socket =
         socket
@@ -860,7 +856,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       current_settings = socket.assigns.entity.settings || %{}
       updated_settings = Map.put(current_settings, setting_key, value)
       updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = Entities.change_entity(updated_entity)
+      changeset = settings_changeset(socket, updated_entity)
 
       socket =
         socket
@@ -878,12 +874,13 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       current_settings = socket.assigns.entity.settings || %{}
       updated_settings = Map.delete(current_settings, "public_form_stats")
       updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = Entities.change_entity(updated_entity)
+      changeset = settings_changeset(socket, updated_entity)
 
       socket =
         socket
         |> assign(:entity, updated_entity)
         |> assign(:changeset, changeset)
+        |> assign(:form_stats_reset?, true)
         |> put_flash(:info, gettext("Form statistics have been reset"))
 
       reply_with_broadcast(socket)
@@ -908,14 +905,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
           %{"mirror_definitions" => false, "mirror_data" => false}
         end
 
-      case Entities.update_mirror_settings(entity, new_settings) do
+      case Entities.update_mirror_settings(entity, new_settings, Actor.opts(socket)) do
         {:ok, updated_entity} ->
-          socket =
-            socket
-            |> assign(:entity, updated_entity)
-            |> assign(:changeset, Entities.change_entity(updated_entity))
-
-          {:noreply, socket}
+          {:noreply, adopt_mirror_settings(socket, updated_entity)}
 
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
@@ -931,14 +923,13 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       current_value = Entities.mirror_data_enabled?(entity)
       new_value = !current_value
 
-      case Entities.update_mirror_settings(entity, %{"mirror_data" => new_value}) do
+      case Entities.update_mirror_settings(
+             entity,
+             %{"mirror_data" => new_value},
+             Actor.opts(socket)
+           ) do
         {:ok, updated_entity} ->
-          socket =
-            socket
-            |> assign(:entity, updated_entity)
-            |> assign(:changeset, Entities.change_entity(updated_entity))
-
-          {:noreply, socket}
+          {:noreply, adopt_mirror_settings(socket, updated_entity)}
 
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
@@ -1151,6 +1142,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
           |> assign(:changeset, changeset)
           |> assign(:fields, saved_entity.fields_definition || [])
           |> assign(:sort_mode, Entities.get_sort_mode(saved_entity))
+          |> assign(:form_stats_reset?, false)
           |> put_flash(:info, gettext("Entity saved successfully"))
 
         reply_with_broadcast(socket)
@@ -1382,6 +1374,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     |> assign(:entity, entity)
     |> assign(:fields, fields)
     |> assign(:changeset, changeset)
+    |> assign(:form_stats_reset?, false)
     |> maybe_update_available_icons()
   end
 
@@ -1438,7 +1431,12 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   end
 
   defp save_entity(socket, entity_params) do
-    opts = Actor.opts(socket)
+    opts =
+      Keyword.put(
+        Actor.opts(socket),
+        :reset_public_form_stats,
+        socket.assigns[:form_stats_reset?]
+      )
 
     if socket.assigns.entity.uuid do
       # Reload entity from database to ensure Ecto detects all changes
@@ -1474,6 +1472,29 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     else
       :ok
     end
+  end
+
+  # The form's changeset over a working copy whose settings just changed,
+  # keeping everything typed so far: a bare `change_entity(updated_entity)`
+  # would rebuild the form from the stored values and drop it.
+  defp settings_changeset(socket, updated_entity) do
+    socket
+    |> assign(:entity, updated_entity)
+    |> update_changeset_field(%{"settings" => updated_entity.settings})
+  end
+
+  # The backup switches write immediately, and write only their own keys
+  # (see `Entities.update_mirror_settings/3`). The working copy takes just
+  # those keys back, so the rest of the in-progress form — typed fields and
+  # settings not saved yet — stays as the admin left it.
+  defp adopt_mirror_settings(socket, saved_entity) do
+    mirror = Map.take(saved_entity.settings || %{}, ["mirror_definitions", "mirror_data"])
+    working = socket.assigns.entity
+    updated_entity = %{working | settings: Map.merge(working.settings || %{}, mirror)}
+
+    socket
+    |> assign(:changeset, settings_changeset(socket, updated_entity))
+    |> assign(:entity, updated_entity)
   end
 
   defp update_changeset_field(socket, new_params) do
@@ -3061,8 +3082,12 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
         <%!-- Field Form Modal --%>
         <%= if @show_field_form do %>
-          <div class="modal modal-open" phx-click="cancel_field">
-            <div class="modal-box w-11/12 max-w-2xl" phx-click="stop_propagation">
+          <%!-- The backdrop is a SIBLING of the box, not its parent. A click
+               goes to the nearest common ancestor of the press and the release,
+               so a handler on the wrapper also fires for a text selection that
+               starts in a field and is let go outside the box. --%>
+          <div class="modal modal-open">
+            <div class="modal-box w-11/12 max-w-2xl">
               <h3 class="font-bold text-lg mb-4">
                 {if @editing_field_index, do: gettext("Edit Field"), else: gettext("Add New Field")}
               </h3>
@@ -3360,19 +3385,16 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                 </div>
               </.form>
             </div>
+            <div class="modal-backdrop" phx-click="cancel_field"></div>
           </div>
         <% end %>
 
         <%!-- Icon Picker Modal --%>
         <%= if @show_icon_picker do %>
-          <div
-            class="fixed inset-0 bg-base-content/50 z-50 flex items-center justify-center p-4"
-            phx-click="close_icon_picker"
-          >
-            <div
-              class="bg-base-100 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-              phx-click="stop_propagation"
-            >
+          <div class="fixed inset-0 bg-base-content/50 z-50 flex items-center justify-center p-4">
+            <%!-- Sibling backdrop, for the same reason as the field modal. --%>
+            <div class="absolute inset-0" phx-click="close_icon_picker" aria-hidden="true"></div>
+            <div class="relative bg-base-100 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
               <%!-- Modal Header --%>
               <div class="flex items-center justify-between p-6 border-b border-base-300">
                 <h2 class="text-2xl font-bold flex items-center gap-2">

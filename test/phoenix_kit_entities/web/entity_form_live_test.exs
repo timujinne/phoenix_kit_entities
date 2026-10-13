@@ -126,7 +126,10 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       # The LV pushes navigate to /admin/entities under the configured
       # locale (or the referrer if one was captured at mount — none
       # here so it falls back to the list path).
-      assert_redirected(view, "/phoenix_kit/en-US/admin/entities")
+      # Core drops the locale segment for the primary language, so only the
+      # tail is stable across language setups.
+      {path, _flash} = assert_redirect(view)
+      assert path =~ ~r{/phoenix_kit/(?:[\w-]+/)?admin/entities\z}
     end
 
     test "plain Update keeps you on the edit page", %{conn: conn} = ctx do
@@ -244,7 +247,6 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
       render_hook(view, "select_icon", %{"icon" => "hero-user"})
       render_hook(view, "clear_icon", %{})
       render_hook(view, "close_icon_picker", %{})
-      render_hook(view, "stop_propagation", %{})
       assert render(view) =~ "Update Entity"
     end
   end
@@ -547,6 +549,72 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
 
       reread = Entities.get_entity(ctx.entity.uuid)
       assert reread != nil
+    end
+  end
+
+  describe "public-form statistics across a save" do
+    defp stats(ctx), do: Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"]
+
+    defp bump(ctx, times) do
+      for _ <- 1..times,
+          do: Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+    end
+
+    defp edit(conn, ctx) do
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
+      view
+    end
+
+    defp save(view, display_name) do
+      view
+      |> form("form[phx-change='validate']", %{"entities" => %{"display_name" => display_name}})
+      |> render_submit()
+    end
+
+    test "submissions counted while the form was open survive the save", %{conn: conn} = ctx do
+      # Opened with no statistics at all, then with some.
+      view = edit(conn, ctx)
+      bump(ctx, 3)
+      save(view, "First edit")
+
+      assert Entities.get_entity!(ctx.entity.uuid).display_name == "First edit"
+      assert %{"total_submissions" => 3} = stats(ctx)
+
+      view = edit(conn, ctx)
+      bump(ctx, 2)
+      save(view, "Second edit")
+
+      assert Entities.get_entity!(ctx.entity.uuid).display_name == "Second edit"
+      assert %{"total_submissions" => 5} = stats(ctx)
+    end
+
+    test "Reset Statistics followed by a save clears them", %{conn: conn} = ctx do
+      bump(ctx, 4)
+      view = edit(conn, ctx)
+
+      render_hook(view, "reset_form_stats", %{})
+      assert %{"total_submissions" => 4} = stats(ctx)
+
+      save(view, "After reset")
+      assert stats(ctx) == nil
+
+      # The reset was that save's; a later one keeps what is counted next.
+      bump(ctx, 1)
+      save(view, "After the reset save")
+      assert %{"total_submissions" => 1} = stats(ctx)
+    end
+
+    test "a statistics reset discarded with the form's Reset is not applied",
+         %{conn: conn} = ctx do
+      bump(ctx, 2)
+      view = edit(conn, ctx)
+
+      render_hook(view, "reset_form_stats", %{})
+      render_hook(view, "reset", %{})
+      save(view, "Kept")
+
+      assert %{"total_submissions" => 2} = stats(ctx)
     end
   end
 

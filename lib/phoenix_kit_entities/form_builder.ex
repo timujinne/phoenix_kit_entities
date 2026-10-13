@@ -1742,10 +1742,21 @@ defmodule PhoenixKitEntities.FormBuilder do
   defp validate_type(%{"type" => "decimal"} = field, value) when is_float(value),
     do: apply_decimal_bounds(field, value |> Float.to_string() |> Decimal.new())
 
+  # A toggle renders a hidden "false" input before the checkbox, so a
+  # parser that keeps repeated keys hands over both: the last one wins,
+  # as it does in a browser's own form encoding.
+  defp validate_type(%{"type" => "boolean"} = field, [_ | _] = values) do
+    if Enum.all?(values, &(is_binary(&1) or is_boolean(&1))) do
+      validate_type(field, List.last(values))
+    else
+      {:error, [gettext("must be true or false")]}
+    end
+  end
+
   defp validate_type(%{"type" => "boolean"}, value) do
     cond do
-      value in [true, "true", "1", 1] -> {:ok, true}
-      value in [false, "false", "0", 0, nil, ""] -> {:ok, false}
+      value in [true, "true", "on", "1", 1] -> {:ok, true}
+      value in [false, "false", "off", "0", 0, nil, ""] -> {:ok, false}
       true -> {:error, [gettext("must be true or false")]}
     end
   end
@@ -1807,9 +1818,12 @@ defmodule PhoenixKitEntities.FormBuilder do
   # uuid to a thumbnail/URL.
   defp validate_type(%{"type" => type}, value)
        when type in ["image", "video"] and is_binary(value) and value != "" do
-    case Ecto.UUID.cast(value) do
-      {:ok, _} -> {:ok, value}
-      :error -> {:error, [gettext("must be a media file reference")]}
+    # The textual form only — see `EntityData`'s `validate_media_field/3`.
+    with 36 <- byte_size(value),
+         {:ok, _} <- Ecto.UUID.cast(value) do
+      {:ok, value}
+    else
+      _ -> {:error, [gettext("must be a media file reference")]}
     end
   end
 

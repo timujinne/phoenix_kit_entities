@@ -238,7 +238,7 @@ defmodule PhoenixKitEntities.Web.DataNavigatorLiveTest do
     # navigator with one already in scope.
 
     defp pk_navigator_url(entity, opts \\ []) do
-      base = "/phoenix_kit/en/admin/entities/#{entity.name}/data"
+      base = "/phoenix_kit/admin/entities/#{entity.name}/data"
 
       case Keyword.get(opts, :status) do
         nil -> base
@@ -279,7 +279,7 @@ defmodule PhoenixKitEntities.Web.DataNavigatorLiveTest do
 
       result = render_hook(view, "filter_by_entity", %{"entity_uuid" => ""})
       # The handler responds with a redirect; the test rendering
-      # succeeds because the target `/phoenix_kit/en/admin/entities`
+      # succeeds because the target `/phoenix_kit/admin/entities`
       # IS in our test router.
       assert is_binary(result) or match?({:error, _}, result)
     end
@@ -909,6 +909,26 @@ defmodule PhoenixKitEntities.Web.DataNavigatorLiveTest do
       refute html =~ "Search by title or slug"
       # …but the way forward is still there.
       assert html =~ "No Data Records Yet"
+    end
+  end
+
+  describe "record links" do
+    # The title opens the editor in one click, as before the read-only page
+    # existed; the row/card menu's "View" is the way to the read-only page.
+    for mode <- ["table", "grid"] do
+      test "#{mode} view: the title links to the editor, the View entry to the read-only page",
+           %{conn: conn} = ctx do
+        conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+        {:ok, view, _html} = live(conn, navigator_url(ctx.entity) <> "?view=#{unquote(mode)}")
+
+        for record <- ctx.records do
+          base = "/admin/entities/dn_test/data/#{record.uuid}"
+
+          assert has_element?(view, ~s|a[href$="#{base}/edit"]|, record.title)
+          assert has_element?(view, ~s|a[href$="#{base}"]|, "View")
+          refute has_element?(view, ~s|a[href$="#{base}"]|, record.title)
+        end
+      end
     end
   end
 

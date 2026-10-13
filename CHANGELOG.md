@@ -1,3 +1,50 @@
+## 0.6.0 - 2026-10-13
+
+### Added
+
+- **A read-only page for a record** at `/admin/entities/:slug/data/:uuid`
+  (`Web.DataShow`): labelled values, thumbnails for images, titles for
+  relations, translated option labels, `Edit` and `Back` buttons. It takes no
+  editing lock and follows the record, its linked records and its blueprint
+  live. The editor stays at `…/edit`; the navigator's "View" entries open the
+  new page.
+- **`PhoenixKitEntities.admin_edit_path/2,3`** builds the editor path for a
+  record, for hosts that offer admins an "Edit" link from a public page
+  (`PhoenixKitWeb.AdminEditHelper`, permission `"entities"`).
+- Public forms accept boolean fields; archived entities refuse submissions;
+  submitted values are size-capped; the client address comes from core's
+  proxy-aware `IpAddress.extract_from_conn/1`.
+- `mix phoenix_kit_entities.export` / `.import` take `--input` / `--output`
+  for one run; the import flash reports errors and unresolved links.
+- `Mirror.Exporter.export_entity/2` takes `include_data:` to override the
+  per-entity setting.
+
+### Changed
+
+- **Submission statistics are one atomic counter bump**: no activity row in
+  the creator's name, no schema-changed broadcast, nothing written for a
+  request the rate limiter refused. `update_entity/3` keeps the stored
+  counters under a row lock; the entity form passes
+  `reset_public_form_stats: true` only for an explicit reset.
+- **Trash and restore** stash the stored status; restore returns the record to
+  it (`"draft"` by default) and, for a single record, re-reads the row under
+  `FOR UPDATE`, answering `{:error, :not_trashed}` to a stale restore.
+- A new record's position is `max(position) + 1` under a per-entity lock; a
+  NULL position no longer breaks creates.
+- The CLI export now uses the mirror exporter, so a backup carries portable
+  relation references (target entity names, linked record slugs) and the
+  multilang metadata.
+- Admin pages keep the viewing locale in their Back links and breadcrumbs.
+
+### Fixed
+
+- The field editor and icon picker no longer close on a drag released outside
+  the box.
+- A record open in two tabs no longer turns a save into an empty changeset.
+- Settings switches write only their own keys and leave typed edits in place.
+- Import dry-run no longer crashes printing a changed entity or record.
+- Test suite follows core 2.62's prefixless primary-language admin paths.
+
 ## 0.5.0 - 2026-09-27
 
 ### Added

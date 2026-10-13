@@ -49,16 +49,21 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
 
   ## Parameters
     - `entity` - Entity struct or entity name string
+    - `opts` - `include_data: boolean` overrides the per-entity mirror setting
 
   ## Returns
     - `{:ok, file_path}` on success
     - `{:error, reason}` on failure
   """
-  @spec export_entity(struct() | String.t()) ::
+  @spec export_entity(struct() | String.t(), keyword()) ::
           {:ok, String.t(), :with_data | :definition_only} | {:error, term()}
-  def export_entity(%{name: name} = entity) do
+  def export_entity(entity, opts \\ [])
+
+  def export_entity(%{name: name} = entity, opts) do
     # Check per-entity mirror_data setting
-    include_data = Entities.mirror_data_enabled?(entity)
+    include_data =
+      Keyword.get_lazy(opts, :include_data, fn -> Entities.mirror_data_enabled?(entity) end)
+
     data_records = if include_data, do: get_entity_data(entity), else: []
 
     content = build_export_content(entity, data_records)
@@ -69,10 +74,10 @@ defmodule PhoenixKitEntities.Mirror.Exporter do
     end
   end
 
-  def export_entity(entity_name) when is_binary(entity_name) do
+  def export_entity(entity_name, opts) when is_binary(entity_name) do
     case Entities.get_entity_by_name(entity_name) do
       nil -> {:error, :entity_not_found}
-      entity -> export_entity(entity)
+      entity -> export_entity(entity, opts)
     end
   end
 

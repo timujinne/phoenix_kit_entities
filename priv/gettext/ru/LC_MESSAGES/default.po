@@ -2931,3 +2931,133 @@ msgid_plural "Permanently delete this record? %{count} records link to it; those
 msgstr[0] "Удалить эту запись навсегда? На неё ссылается %{count} запись; ссылка будет удалена. Это действие нельзя отменить."
 msgstr[1] "Удалить эту запись навсегда? На неё ссылаются %{count} записи; ссылки будут удалены. Это действие нельзя отменить."
 msgstr[2] "Удалить эту запись навсегда? На неё ссылаются %{count} записей; ссылки будут удалены. Это действие нельзя отменить."
+
+#: lib/phoenix_kit_entities/entity_data.ex
+#, elixir-autogen, elixir-format
+msgid "field '%{label}' must be a list of files"
+msgstr "поле '%{label}' должно быть списком файлов"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module: its slug and status cannot be changed here."
+msgstr "Эта сущность управляется другим модулем: её slug и статус нельзя изменить здесь."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This setting is locked by the module that manages the blueprint."
+msgstr "Эта настройка заблокирована модулем, который управляет сущностью."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module and cannot be deleted here."
+msgstr "Эта сущность управляется другим модулем, удалить её здесь нельзя."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "The module that manages this blueprint could not confirm it is safe to delete."
+msgstr "Модуль, который управляет этой сущностью, не смог подтвердить, что её можно безопасно удалить."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This record was changed in another session. Reload and try again."
+msgstr "Эта запись была изменена в другом сеансе. Обновите страницу и попробуйте снова."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Too many records in one request."
+msgstr "Слишком много записей в одном запросе."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Nothing was imported: %{reason}"
+msgstr "Ничего не импортировано: %{reason}"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "a record is not valid (%{errors})"
+msgstr "запись недействительна (%{errors})"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} record(s) link to records that do not exist"
+msgstr "записей, ссылающихся на несуществующие записи: %{count}"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "no export file for '%{name}'"
+msgstr "нет файла экспорта для '%{name}'"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "entity '%{name}' does not exist"
+msgstr "сущность '%{name}' не существует"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import failed. %{reason}"
+msgstr "Импорт не удался. %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import finished with %{count} error(s), the first: %{reason}"
+msgstr "Импорт завершён с ошибками (%{count}), первая: %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} relation field(s) pointed at records that could not be found and were left without them: %{records}"
+msgstr "Полей связи, указывавших на ненайденные записи и оставленных без них: %{count} (%{records})"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must start with a letter and contain only lowercase letters, numbers, and underscores"
+msgstr "должно начинаться с буквы и содержать только строчные буквы, цифры и подчёркивания"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "has already been taken"
+msgstr "уже занято"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must be a list of field definitions"
+msgstr "должно быть списком определений полей"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "field missing required keys: %{keys}"
+msgstr "у поля отсутствуют обязательные ключи: %{keys}"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "each field must be a map"
+msgstr "каждое поле должно быть отображением (map)"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "invalid field type '%{type}' for field '%{key}'"
+msgstr "недопустимый тип '%{type}' у поля '%{key}'"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation field '%{key}' needs a target_entity"
+msgstr "полю связи '%{key}' нужна целевая сущность (target_entity)"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation fields are turned off (entities_allow_relations); cannot add '%{key}'"
+msgstr "поля связи отключены (entities_allow_relations); нельзя добавить '%{key}'"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr "Назад"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Record of the %{entity} entity"
+msgstr "Запись сущности «%{entity}»"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Video attached"
+msgstr "Видео прикреплено"

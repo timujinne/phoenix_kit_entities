@@ -44,7 +44,7 @@ defmodule PhoenixKitEntities.Routes do
 
       live(
         "/admin/entities/:entity_slug/data/:uuid",
-        PhoenixKitEntities.Web.DataForm,
+        PhoenixKitEntities.Web.DataShow,
         :show,
         as: :entities_data_show_localized
       )
@@ -95,7 +95,7 @@ defmodule PhoenixKitEntities.Routes do
 
       live(
         "/admin/entities/:entity_slug/data/:uuid",
-        PhoenixKitEntities.Web.DataForm,
+        PhoenixKitEntities.Web.DataShow,
         :show,
         as: :entities_data_show
       )

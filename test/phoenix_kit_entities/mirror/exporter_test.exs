@@ -13,17 +13,17 @@ defmodule PhoenixKitEntities.Mirror.ExporterTest do
   """
   use PhoenixKitEntities.DataCase, async: false
 
-  alias PhoenixKit.Settings
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.Mirror.{Exporter, Storage}
+  alias PhoenixKitEntities.Test.MirrorDir
 
-  @tmp_root Path.join(System.tmp_dir!(), "phoenix_kit_entities_exporter_test")
+  @tmp_root MirrorDir.path("exporter_test")
 
   setup do
     File.rm_rf!(@tmp_root)
     File.mkdir_p!(@tmp_root)
-    {:ok, _} = Settings.update_setting("entities_mirror_path", @tmp_root)
+    MirrorDir.use!(@tmp_root)
     on_exit(fn -> File.rm_rf!(@tmp_root) end)
 
     actor_uuid = Ecto.UUID.generate()

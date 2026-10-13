@@ -15,7 +15,9 @@ defmodule PhoenixKitEntities.Errors do
       `:entity_not_found`, etc.
     * tagged tuples — `{:invalid_field_type, type}`,
       `{:requires_options, type}`, `{:missing_required_keys, [keys]}`,
-      `{:user_entity_limit_reached, max}`. The dynamic part is
+      `{:user_entity_limit_reached, max}`, and the mirror importer's
+      reasons (`{:rolled_back, reason}`, `{:validation_failed,
+      changeset}`, `{:broken_links, links}`, …). The dynamic part is
       interpolated via `gettext` bindings so the wording lives in this
       package's own `.po` files.
     * strings — passed through unchanged (legacy / pre-existing
@@ -50,6 +52,12 @@ defmodule PhoenixKitEntities.Errors do
           | :has_children
           | :missing_target_entity
           | :relations_not_allowed
+          | :managed_blueprint
+          | :locked_key
+          | :no_delete_guard
+          | :delete_guard_error
+          | :status_mismatch
+          | :too_many_uuids
 
   @typedoc """
   Tagged tuples carrying interpolation context.
@@ -59,6 +67,13 @@ defmodule PhoenixKitEntities.Errors do
           | {:requires_options, String.t()}
           | {:missing_required_keys, [String.t()]}
           | {:user_entity_limit_reached, non_neg_integer()}
+          | {:rolled_back, term()}
+          | {:write_failed, term()}
+          | {:refused, term()}
+          | {:validation_failed, Ecto.Changeset.t()}
+          | {:broken_links, list()}
+          | {:file_not_found, String.t()}
+          | {:entity_not_found, String.t(), term()}
 
   @doc """
   Translates an error reason (atom, tagged tuple, or binary) into a
@@ -91,6 +106,58 @@ defmodule PhoenixKitEntities.Errors do
   def message(:relations_not_allowed),
     do: gettext("Relation fields are turned off in the Entities settings.")
 
+  def message(:managed_blueprint) do
+    gettext(
+      "This blueprint is managed by another module: its slug and status cannot be changed here."
+    )
+  end
+
+  def message(:locked_key),
+    do: gettext("This setting is locked by the module that manages the blueprint.")
+
+  def message(:no_delete_guard) do
+    gettext("This blueprint is managed by another module and cannot be deleted here.")
+  end
+
+  def message(:delete_guard_error) do
+    gettext("The module that manages this blueprint could not confirm it is safe to delete.")
+  end
+
+  def message(:status_mismatch) do
+    gettext("This record was changed in another session. Reload and try again.")
+  end
+
+  def message(:too_many_uuids), do: gettext("Too many records in one request.")
+
+  # The mirror importer's reasons. A wrapper names what happened to the
+  # run; the reason inside it names why.
+  def message({:rolled_back, reason}) do
+    gettext("Nothing was imported: %{reason}", reason: message(reason))
+  end
+
+  def message({:write_failed, reason}), do: message(reason)
+  def message({:refused, reason}), do: message(reason)
+
+  def message({:validation_failed, %Ecto.Changeset{} = changeset}) do
+    gettext("a record is not valid (%{errors})", errors: changeset_errors(changeset))
+  end
+
+  def message({:broken_links, links}) when is_list(links) do
+    gettext("%{count} record(s) link to records that do not exist", count: length(links))
+  end
+
+  def message({:file_not_found, name}) when is_binary(name) do
+    gettext("no export file for '%{name}'", name: name)
+  end
+
+  def message({:entity_not_found, name, _slug}) when is_binary(name) do
+    gettext("entity '%{name}' does not exist", name: name)
+  end
+
+  def message(%Ecto.Changeset{} = changeset) do
+    gettext("a record is not valid (%{errors})", errors: changeset_errors(changeset))
+  end
+
   def message({:invalid_field_type, type}) when is_binary(type) do
     gettext("Invalid field type: %{type}", type: type)
   end
@@ -111,5 +178,18 @@ defmodule PhoenixKitEntities.Errors do
 
   def message(reason) do
     gettext("Unexpected error: %{reason}", reason: inspect(reason))
+  end
+
+  # Field names and already-translated messages only — never the values.
+  defp changeset_errors(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
+      Regex.replace(~r/%{(\w+)}/, message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+    |> Enum.map_join("; ", fn {field, messages} ->
+      "#{field}: #{messages |> List.flatten() |> Enum.join(", ")}"
+    end)
   end
 end

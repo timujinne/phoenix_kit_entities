@@ -38,7 +38,7 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
   # two concurrent `mix test` runs against a shared Postgres never collide
   # on `DROP DATABASE IF EXISTS`/`CREATE DATABASE` for the same name — the
   # exact "shared scratch DB" scenario I067 exists for in the first place.
-  defp unique_suffix, do: :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)
+  defp unique_suffix, do: :crypto.strong_rand_bytes(12) |> Base.encode16(case: :lower)
 
   # S014: every name built from this prefix ends in `_test` (suffix appended
   # AFTER the random part, not baked into the prefix) — LiveDatabaseGuard's
@@ -130,7 +130,6 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
     scratch_db = "#{@scratch_db_prefix}_#{unique_suffix()}_test"
 
     {:ok, admin} = Postgrex.start_link(admin_opts)
-    Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{scratch_db}", [])
     clone_template!(admin, scratch_db)
 
     # The template itself may already carry the "phoenix_kit_entities"
@@ -221,7 +220,6 @@ defmodule PhoenixKitEntities.SchemaOwnerGuardWiringTest do
     foreign_db = "#{@foreign_db_prefix}_#{unique_suffix()}_test"
 
     {:ok, admin} = Postgrex.start_link(admin_opts)
-    Postgrex.query!(admin, "DROP DATABASE IF EXISTS #{foreign_db}", [])
     clone_template!(admin, foreign_db)
 
     {:ok, seeder} = Postgrex.start_link(Keyword.put(admin_opts, :database, foreign_db))

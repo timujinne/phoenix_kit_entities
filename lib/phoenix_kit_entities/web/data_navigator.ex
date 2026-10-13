@@ -606,7 +606,9 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
   end
 
   defp apply_record_reorder(socket, ordered_ids, moved_id) do
-    {entity, sort_flipped?} = ensure_manual_sort(socket.assigns.selected_entity)
+    {entity, sort_flipped?} =
+      ensure_manual_sort(socket.assigns.selected_entity, Actor.opts(socket))
+
     entity_uuid = socket.assigns.selected_entity_uuid
 
     case EntityData.reorder(entity_uuid, ordered_ids, Actor.opts(socket)) do
@@ -646,11 +648,11 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
   # can see the silent setting flip in the application log; the flip
   # itself also lands as an `entity.updated` activity row via the
   # context's notify hook.
-  defp ensure_manual_sort(entity) do
+  defp ensure_manual_sort(entity, opts) do
     if Entities.manual_sort?(entity) do
       {entity, :already_manual}
     else
-      case Entities.update_sort_mode(entity, "manual") do
+      case Entities.update_sort_mode(entity, "manual", opts) do
         {:ok, updated} ->
           Logger.warning(
             "DataNavigator: entity #{entity.uuid} (#{entity.name}) auto-switched sort_mode to \"manual\" on first drag"
@@ -1493,7 +1495,7 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
                       <.link
                         navigate={
                           PhoenixKit.Utils.Routes.path(
-                            "/admin/entities/#{get_entity_slug(@entities, data_record.entity_uuid)}/data/#{data_record.uuid}"
+                            "/admin/entities/#{get_entity_slug(@entities, data_record.entity_uuid)}/data/#{data_record.uuid}/edit"
                           )
                         }
                         class="block hover:text-primary transition-colors cursor-pointer"
@@ -1647,7 +1649,7 @@ defmodule PhoenixKitEntities.Web.DataNavigator do
                         <.link
                           navigate={
                             PhoenixKit.Utils.Routes.path(
-                              "/admin/entities/#{get_entity_slug(@entities, data_record.entity_uuid)}/data/#{data_record.uuid}"
+                              "/admin/entities/#{get_entity_slug(@entities, data_record.entity_uuid)}/data/#{data_record.uuid}/edit"
                             )
                           }
                           class="flex-1 hover:text-primary transition-colors cursor-pointer"

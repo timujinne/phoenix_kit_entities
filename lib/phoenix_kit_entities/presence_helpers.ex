@@ -8,6 +8,20 @@ defmodule PhoenixKitEntities.PresenceHelpers do
 
   alias PhoenixKitEntities.Presence
 
+  @typedoc "Which kind of form is being edited."
+  @type resource_type :: :entity | :data
+
+  @typedoc "One editing session's presence metadata."
+  @type meta :: %{
+          required(:user_uuid) => String.t(),
+          required(:joined_at) => integer(),
+          required(:pid) => pid(),
+          optional(atom()) => term()
+        }
+
+  @typedoc "A session, as `{socket_id, meta}`."
+  @type presence :: {String.t(), meta()}
+
   @doc """
   Tracks the current LiveView process in a Presence topic.
 
@@ -23,6 +37,8 @@ defmodule PhoenixKitEntities.PresenceHelpers do
       track_editing_session(:entity, 5, socket, user)
       # => {:ok, ref}
   """
+  @spec track_editing_session(resource_type(), term(), Phoenix.LiveView.Socket.t(), map()) ::
+          {:ok, binary()} | {:error, term()}
   def track_editing_session(type, id, socket, user) do
     topic = editing_topic(type, id)
 
@@ -60,6 +76,8 @@ defmodule PhoenixKitEntities.PresenceHelpers do
           # I'm read-only, sync with owner's state
       end
   """
+  @spec get_editing_role(resource_type(), term(), String.t(), String.t() | nil) ::
+          {:owner, [presence()]} | {:spectator, meta(), [presence()]}
   def get_editing_role(type, id, socket_id, current_user_uuid) do
     presences = get_sorted_presences(type, id)
 
@@ -98,6 +116,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
       #   {"phx-def456", %{user_uuid: "019...", joined_at: 123458, ...}}
       # ]
   """
+  @spec get_sorted_presences(resource_type(), term()) :: [presence()]
   def get_sorted_presences(type, id) do
     topic = editing_topic(type, id)
     raw_presences = Presence.list(topic)
@@ -139,6 +158,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
   `hashed_password` to every subscriber of the topic. Read `user_uuid` and
   load what you need.
   """
+  @spec get_spectators(resource_type(), term()) :: [meta()]
   def get_spectators(type, id) do
     case get_sorted_presences(type, id) do
       [] -> []
@@ -149,6 +169,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
   @doc """
   How many sessions currently have this resource open for editing.
   """
+  @spec count_editors(resource_type(), term()) :: non_neg_integer()
   def count_editors(type, id) do
     get_sorted_presences(type, id) |> length()
   end
@@ -163,6 +184,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
         meta -> # meta.user_uuid, meta.joined_at, meta.pid
       end
   """
+  @spec get_lock_owner(resource_type(), term()) :: meta() | nil
   def get_lock_owner(type, id) do
     case get_sorted_presences(type, id) do
       [{_socket_id, meta} | _] -> meta
@@ -181,6 +203,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
       subscribe_to_editing(:entity, 5)
       # Now will receive presence_diff messages
   """
+  @spec subscribe_to_editing(resource_type(), term()) :: :ok | {:error, term()}
   def subscribe_to_editing(type, id) do
     topic = editing_topic(type, id)
     Phoenix.PubSub.subscribe(:phoenix_kit_internal_pubsub, topic)
@@ -197,6 +220,7 @@ defmodule PhoenixKitEntities.PresenceHelpers do
       editing_topic(:data, 10)
       # => "data_edit:10"
   """
+  @spec editing_topic(resource_type(), term()) :: String.t()
   def editing_topic(:entity, id), do: "entity_edit:#{id}"
   def editing_topic(:data, id), do: "data_edit:#{id}"
 end

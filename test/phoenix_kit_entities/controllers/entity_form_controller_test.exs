@@ -6,7 +6,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
 
   Coverage: all security branches (honeypot trigger, time-check trigger,
   rate-limit, save_suspicious + save_log markers), public-form
-  enabled/disabled, IP allowlist (rate-limit-safe vs spoofed RFC1918),
+  enabled/disabled, the client address behind and without a proxy,
   metadata building (browser/OS/device), happy-path submission, and
   the entity_not_found early return.
   """
@@ -17,8 +17,6 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
   alias PhoenixKitEntities.Controllers.EntityFormController
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.FormBuilder
-
-  @endpoint PhoenixKitEntities.Test.Endpoint
 
   setup do
     # A real admin row, not a bare `Ecto.UUID.generate()`. The public form is
@@ -74,15 +72,6 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
       nil -> conn
       val -> Plug.Conn.put_req_header(conn, "x-forwarded-for", val)
     end
-  end
-
-  defp invoke_submit(conn, params) do
-    conn
-    |> Phoenix.ConnTest.put_format("html")
-    |> Phoenix.ConnTest.bypass_through(PhoenixKitEntities.Test.Router, [:browser])
-    |> tap(fn _c -> :ok end)
-    |> Plug.Conn.fetch_query_params()
-    |> EntityFormController.submit(params)
   end
 
   defp simple_invoke(conn, params) do
@@ -313,13 +302,15 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         }
       }
 
-      _result = simple_invoke(conn, params)
-      # No assertion on the dropped field — the controller's filter
-      # silently strips it. Coverage of the filter branch is the goal.
+      simple_invoke(conn, params)
+
+      assert [record] = EntityData.list_by_entity(entity.uuid)
+      assert record.data == %{"title" => "Allowed"}
     end
 
-    test "with X-Forwarded-For header, picks up the IP for metadata",
-         %{entity: entity} = _ctx do
+    # `build_conn/4`'s peer is 127.0.0.1 — a proxy on the same box — so
+    # the address the proxy appended to `X-Forwarded-For` is the visitor.
+    test "behind a proxy, the forwarded address is stored in the metadata", %{entity: entity} do
       conn = build_conn(:post, "/", %{}, forwarded_for: "8.8.8.8")
 
       params = %{
@@ -327,19 +318,29 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [record] = EntityData.list_by_entity(entity.uuid)
+      assert record.metadata["ip_address"] == "8.8.8.8"
+      assert record.metadata["source"] == "public_form"
     end
 
-    test "with spoofed X-Forwarded-For (RFC1918), rejects spoof for rate-limit but uses for metadata",
-         %{entity: entity} = _ctx do
-      conn = build_conn(:post, "/", %{}, forwarded_for: "10.0.0.1")
+    test "a direct client cannot name its own address through X-Forwarded-For", %{
+      entity: entity
+    } do
+      conn =
+        build_conn(:post, "/", %{}, forwarded_for: "10.0.0.1")
+        |> Map.put(:remote_ip, {203, 0, 113, 20})
 
       params = %{
         "entity_slug" => entity.name,
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [record] = EntityData.list_by_entity(entity.uuid)
+      assert record.metadata["ip_address"] == "203.0.113.20"
     end
 
     test "Edge user-agent → parsed as Edge browser via metadata", %{entity: entity} do
@@ -354,7 +355,10 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [%{metadata: metadata}] = EntityData.list_by_entity(entity.uuid)
+      assert %{"browser" => "Edge", "os" => "Windows 10", "device" => "desktop"} = metadata
     end
 
     test "iPhone user-agent → parsed as mobile via metadata", %{entity: entity} do
@@ -369,7 +373,10 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [%{metadata: metadata}] = EntityData.list_by_entity(entity.uuid)
+      assert %{"device" => "mobile", "os" => "macOS"} = metadata
     end
 
     test "Linux user-agent → parsed as Linux OS", %{entity: entity} do
@@ -383,7 +390,10 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [%{metadata: metadata}] = EntityData.list_by_entity(entity.uuid)
+      assert %{"browser" => "Firefox", "os" => "Linux", "device" => "desktop"} = metadata
     end
 
     test "metadata collection disabled via public_form_collect_metadata=false", %{entity: entity} do
@@ -398,7 +408,13 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"title" => "Z"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      # Only the source marker: no address, no user agent.
+      assert [%{metadata: %{"source" => "public_form"} = metadata}] =
+               EntityData.list_by_entity(entity.uuid)
+
+      assert map_size(metadata) == 1
     end
   end
 
@@ -526,7 +542,11 @@ defmodule PhoenixKitEntities.Controllers.EntityFormControllerTest do
         "phoenix_kit_entity_data" => %{"data" => %{"unknown_field" => "X"}}
       }
 
-      _result = simple_invoke(conn, params)
+      simple_invoke(conn, params)
+
+      assert [record] = EntityData.list_by_entity(entity.uuid)
+      assert record.title == entity.display_name
+      assert record.data == %{}
     end
   end
 

@@ -111,7 +111,7 @@ Responsible for entity blueprints:
 - CRUD helpers (`list_entities/1`, `get_entity!/2`, `get_entity/2`, `get_entity_by_name/2`, `create_entity/1`, `update_entity/2`, `delete_entity/1`, `change_entity/2`). All query functions accept an optional `lang:` keyword option for language-aware results.
 - Statistics (`get_system_stats/0`, `count_entities/0`, `count_user_entities/1`).
 - Settings helpers (`enabled?/0`, `enable_system/0`, `disable_system/0`, `get_config/0`).
-- Sort mode helpers (`get_sort_mode/1`, `get_sort_mode_by_uuid/1`, `manual_sort?/1`, `update_sort_mode/2`).
+- Sort mode helpers (`get_sort_mode/1`, `get_sort_mode_by_uuid/1`, `manual_sort?/1`, `update_sort_mode/3`).
 - Limit enforcement (`validate_user_entity_limit/1`).
 - Language resolution (`resolve_language/2`, `resolve_languages/2`) for applying translations to entity structs.
 
@@ -248,21 +248,15 @@ Each field definition is a map like:
 | Setting | Description | Exposed via | Status |
 |---------|-------------|-------------|--------|
 | `entities_enabled` | Master on/off switch for the module | `/admin/modules`, `Entities.enable_system/0` | ✅ Active |
-| `entities_max_per_user` | Blueprint limit per creator | Settings UI & `Entities.get_max_per_user/0` | ✅ Active |
+| `entities_max_per_user` | Blueprint limit per creator | `phoenix_kit_settings` (no UI), `Entities.get_max_per_user/0` | ✅ Active |
 | `entities_allow_relations` | Whether NEW relation fields may be added (existing ones keep working) | `phoenix_kit_settings` (no UI) | ✅ Active |
 | `entities_file_upload` | Reserved for future file/image upload toggle | Settings UI | 🚧 Not yet enforced |
-| `entities_auto_generate_slugs` | Reserved for optional slug generation control | Settings UI | 🚧 Not yet enforced (slugs always auto-generate) |
-| `entities_default_status` | Reserved for default status on new records | Settings UI | 🚧 Not yet enforced (defaults to "published") |
-| `entities_require_approval` | Reserved for approval workflow | Settings UI | 🚧 Not yet enforced |
-| `entities_data_retention_days` | Reserved for data retention policy | Settings UI | 🚧 Not yet enforced |
-| `entities_enable_revisions` | Reserved for revision history | Settings UI | 🚧 Not yet enforced |
-| `entities_enable_comments` | Reserved for commenting system | Settings UI | 🚧 Not yet enforced |
 
 **Per-entity settings** (stored in entity `settings` JSONB, not in `phoenix_kit_settings`):
 
 | Setting | Description | API | Status |
 |---------|-------------|-----|--------|
-| `sort_mode` | Record ordering: `"auto"` or `"manual"` | `Entities.get_sort_mode/1`, `update_sort_mode/2` | ✅ Active |
+| `sort_mode` | Record ordering: `"auto"` or `"manual"` | `Entities.get_sort_mode/1`, `update_sort_mode/3` | ✅ Active |
 | `mirror_definitions` | Filesystem mirroring of entity definition | `Entities.mirror_definitions_enabled?/1` | ✅ Active |
 | `mirror_data` | Filesystem mirroring of entity data | `Entities.mirror_data_enabled?/1` | ✅ Active |
 | `translations` | Translated display_name/description per language | `Entities.get_entity_translations/1` | ✅ Active |

@@ -2923,3 +2923,133 @@ msgid "Permanently delete this record? %{count} record links to it; that link wi
 msgid_plural "Permanently delete this record? %{count} records link to it; those links will be removed. This cannot be undone."
 msgstr[0] "Kas kustutada see kirje jäädavalt? Sellele viitab %{count} kirje; see viide eemaldatakse. Seda ei saa tagasi võtta."
 msgstr[1] "Kas kustutada see kirje jäädavalt? Sellele viitab %{count} kirjet; need viited eemaldatakse. Seda ei saa tagasi võtta."
+
+#: lib/phoenix_kit_entities/entity_data.ex
+#, elixir-autogen, elixir-format
+msgid "field '%{label}' must be a list of files"
+msgstr "väli '%{label}' peab olema failide loend"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module: its slug and status cannot be changed here."
+msgstr "Seda üksust haldab teine moodul: selle slug'i ja staatust ei saa siin muuta."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This setting is locked by the module that manages the blueprint."
+msgstr "Selle seade on lukustanud üksust haldav moodul."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This blueprint is managed by another module and cannot be deleted here."
+msgstr "Seda üksust haldab teine moodul ja seda ei saa siin kustutada."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "The module that manages this blueprint could not confirm it is safe to delete."
+msgstr "Seda üksust haldav moodul ei saanud kinnitada, et selle kustutamine on ohutu."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "This record was changed in another session. Reload and try again."
+msgstr "Seda kirjet muudeti teises seansis. Laadige leht uuesti ja proovige uuesti."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Too many records in one request."
+msgstr "Ühes päringus on liiga palju kirjeid."
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "Nothing was imported: %{reason}"
+msgstr "Midagi ei imporditud: %{reason}"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "a record is not valid (%{errors})"
+msgstr "kirje ei ole kehtiv (%{errors})"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} record(s) link to records that do not exist"
+msgstr "%{count} kirje(t) viitab kirjetele, mida ei ole olemas"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "no export file for '%{name}'"
+msgstr "üksuse '%{name}' ekspordifaili ei leitud"
+
+#: lib/phoenix_kit_entities/errors.ex
+#, elixir-autogen, elixir-format
+msgid "entity '%{name}' does not exist"
+msgstr "üksust '%{name}' ei ole olemas"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import failed. %{reason}"
+msgstr "Importimine ebaõnnestus. %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "Import finished with %{count} error(s), the first: %{reason}"
+msgstr "Importimine lõppes %{count} veaga, esimene: %{reason}"
+
+#: lib/phoenix_kit_entities/web/entities_settings.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} relation field(s) pointed at records that could not be found and were left without them: %{records}"
+msgstr "%{count} seose väli viitas kirjetele, mida ei leitud, ja need viited jäeti välja: %{records}"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must start with a letter and contain only lowercase letters, numbers, and underscores"
+msgstr "peab algama tähega ning sisaldama ainult väiketähti, numbreid ja alakriipse"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "has already been taken"
+msgstr "on juba kasutusel"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "must be a list of field definitions"
+msgstr "peab olema väljamääratluste loend"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "field missing required keys: %{keys}"
+msgstr "väljal puuduvad kohustuslikud võtmed: %{keys}"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "each field must be a map"
+msgstr "iga väli peab olema vastendus"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "invalid field type '%{type}' for field '%{key}'"
+msgstr "välja '%{key}' tüüp '%{type}' ei ole lubatud"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation field '%{key}' needs a target_entity"
+msgstr "seose väli '%{key}' vajab sihtüksust (target_entity)"
+
+#: lib/phoenix_kit_entities.ex
+#, elixir-autogen, elixir-format
+msgid "relation fields are turned off (entities_allow_relations); cannot add '%{key}'"
+msgstr "seose väljad on välja lülitatud (entities_allow_relations); välja '%{key}' ei saa lisada"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr "Tagasi"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Record of the %{entity} entity"
+msgstr "Olemi „%{entity}“ kirje"
+
+#: lib/phoenix_kit_entities/web/data_show.ex
+#, elixir-autogen, elixir-format
+msgid "Video attached"
+msgstr "Video on lisatud"

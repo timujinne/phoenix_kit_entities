@@ -1,8 +1,11 @@
 defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
   use PhoenixKitEntities.LiveCase, async: false
 
+  alias PhoenixKit.Test.Fixtures
   alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitEntities.FieldTypes
   alias PhoenixKitEntities.Mirror.Storage
+  alias PhoenixKitEntities.Test.MirrorDir
 
   setup do
     actor_uuid = Ecto.UUID.generate()
@@ -108,41 +111,6 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     end
   end
 
-  describe "settings form events" do
-    test "validate + save events update settings without crashing",
-         %{conn: conn} = ctx do
-      {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
-      {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
-
-      # Drive the events directly via render_hook since the page may
-      # have multiple forms (settings + mirror) and `form/2` on a bare
-      # selector ambiguates.
-      render_hook(view, "validate", %{
-        "settings" => %{"auto_generate_slugs" => "true"}
-      })
-
-      render_hook(view, "save", %{
-        "settings" => %{
-          "auto_generate_slugs" => "true",
-          "default_status" => "draft"
-        }
-      })
-
-      assert render(view) =~ "Entities System"
-    end
-
-    test "reset_to_defaults event doesn't crash",
-         %{conn: conn} = ctx do
-      {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
-      {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
-
-      render_hook(view, "reset_to_defaults", %{})
-      assert render(view) =~ "Entities System"
-    end
-  end
-
   describe "mirror toggle / export / import events" do
     setup do
       actor_uuid = Ecto.UUID.generate()
@@ -169,8 +137,32 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "toggle_entity_definitions", %{"uuid" => ctx.entity.uuid})
+      assert Entities.get_entity!(ctx.entity.uuid).settings["mirror_definitions"] == true
+
       render_hook(view, "toggle_entity_data", %{"uuid" => ctx.entity.uuid})
-      assert render(view) =~ "Entities System"
+      assert Entities.get_entity!(ctx.entity.uuid).settings["mirror_data"] == true
+    end
+
+    test "a mirror toggle is attributed to the admin who flipped it, not the entity's creator",
+         %{conn: conn} = ctx do
+      acting = Ecto.UUID.generate()
+      conn = put_test_scope(conn, fake_scope(user_uuid: acting))
+      {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
+
+      render_hook(view, "toggle_entity_definitions", %{"uuid" => ctx.entity.uuid})
+
+      assert_activity_logged("entity.updated", actor_uuid: acting, resource_uuid: ctx.entity.uuid)
+    end
+
+    test "enable-all is attributed to the admin who clicked it", %{conn: conn} = ctx do
+      acting = Ecto.UUID.generate()
+      conn = put_test_scope(conn, fake_scope(user_uuid: acting))
+      {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
+
+      render_hook(view, "enable_all_definitions", %{})
+
+      assert Entities.get_entity!(ctx.entity.uuid).settings["mirror_definitions"] == true
+      assert_activity_logged("entity.updated", actor_uuid: acting, resource_uuid: ctx.entity.uuid)
     end
 
     test "enable_all_definitions / disable_all_definitions doesn't crash",
@@ -279,6 +271,117 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
 
       render_hook(view, "do_import", %{})
       assert render(view) =~ "Entities System"
+    end
+  end
+
+  describe "the import result flash" do
+    setup do
+      dir =
+        MirrorDir.use!(MirrorDir.path("settings_live"))
+
+      # The importer attributes what it creates to the first admin.
+      Fixtures.admin_fixture()
+      {:ok, dir: dir}
+    end
+
+    defp write_export(dir, name, fields, records) do
+      File.write!(
+        Path.join(dir, "#{name}.json"),
+        Jason.encode!(%{
+          "definition" => %{
+            "name" => name,
+            "display_name" => "Import #{name}",
+            "display_name_plural" => "Import #{name}s",
+            "status" => "published",
+            "fields_definition" => fields,
+            "settings" => %{}
+          },
+          "data" => records
+        })
+      )
+    end
+
+    defp import_everything(conn, actor_uuid) do
+      conn = put_test_scope(conn, fake_scope(user_uuid: actor_uuid))
+      {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
+      render_hook(view, "show_import_modal", %{})
+      render_hook(view, "do_import", %{})
+      view
+    end
+
+    @email_field %{"type" => "email", "key" => "email", "label" => "Email"}
+
+    test "a clean run reports what was created as info", %{conn: conn} = ctx do
+      write_export(ctx.dir, "flash_ok", [@email_field], [
+        %{
+          "title" => "A",
+          "slug" => "a",
+          "status" => "published",
+          "data" => %{"email" => "a@b.co"}
+        }
+      ])
+
+      view = import_everything(conn, ctx.actor_uuid)
+
+      assert view |> element("#flash-info") |> render() =~
+               "Import complete. Definitions: 1 created, 0 updated, 0 skipped. Data: 1 created, 0 updated, 0 skipped."
+
+      refute has_element?(view, "#flash-error")
+      assert Entities.get_entity_by_name("flash_ok")
+    end
+
+    test "an invalid record is reported as an error next to the counts", %{conn: conn} = ctx do
+      write_export(ctx.dir, "flash_bad", [@email_field], [
+        %{
+          "title" => "A",
+          "slug" => "a",
+          "status" => "published",
+          "data" => %{"email" => "a@b.co"}
+        },
+        %{"title" => "B", "slug" => "b", "status" => "published", "data" => %{"email" => "nope"}}
+      ])
+
+      view = import_everything(conn, ctx.actor_uuid)
+
+      error = view |> element("#flash-error") |> render()
+      assert error =~ "Import finished with 1 error(s), the first: a record is not valid"
+      assert error =~ "must be a valid email"
+      assert view |> element("#flash-info") |> render() =~ "Data: 1 created"
+    end
+
+    test "a file that cannot be imported is an error next to the counts", %{conn: conn} = ctx do
+      write_export(ctx.dir, "flash_ok", [@email_field], [])
+      File.write!(Path.join(ctx.dir, "flash_broken.json"), Jason.encode!(%{"data" => "x"}))
+
+      view = import_everything(conn, ctx.actor_uuid)
+
+      assert view |> element("#flash-error") |> render() =~
+               "Import finished with 1 error(s), the first: Invalid format."
+
+      assert view |> element("#flash-info") |> render() =~ "Definitions: 1 created"
+    end
+
+    test "links that could not be resolved are named in a warning", %{conn: conn} = ctx do
+      write_export(
+        ctx.dir,
+        "flash_link",
+        [FieldTypes.relation_field("target", "Target", "settings_widget")],
+        [
+          %{
+            "title" => "A",
+            "slug" => "a",
+            "status" => "published",
+            "data" => %{"target" => %{"slug" => "not-there"}}
+          }
+        ]
+      )
+
+      view = import_everything(conn, ctx.actor_uuid)
+
+      assert view |> element("#flash-warning") |> render() =~
+               "1 relation field(s) pointed at records that could not be found and were left without them: flash_link/a (target)"
+
+      assert view |> element("#flash-info") |> render() =~ "Data: 1 created"
     end
   end
 end

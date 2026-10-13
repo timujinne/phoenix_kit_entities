@@ -1779,8 +1779,8 @@ test "unique constraint on entity name"
 @spec multilang_enabled?() :: boolean()
 @spec get_entity_translations(t()) :: map()
 @spec get_entity_translation(t(), String.t()) :: map()
-@spec set_entity_translation(t(), String.t(), map()) :: {:ok, t()} | {:error, Ecto.Changeset.t()}
-@spec remove_entity_translation(t(), String.t()) :: {:ok, t()} | {:error, Ecto.Changeset.t()}
+@spec set_entity_translation(t(), String.t(), map(), keyword()) :: {:ok, t()} | {:error, Ecto.Changeset.t() | term()}
+@spec remove_entity_translation(t(), String.t(), keyword()) :: {:ok, t()} | {:error, Ecto.Changeset.t() | term()}
 ```
 
 Note: `create_entity/1` auto-fills `created_by_uuid` with the first admin user if not provided.

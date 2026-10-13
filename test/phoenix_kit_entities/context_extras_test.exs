@@ -213,33 +213,93 @@ defmodule PhoenixKitEntities.ContextExtrasTest do
       assert is_boolean(Entities.mirror_data_enabled?(ctx.published))
     end
 
-    test "update_mirror_settings/2 persists the changes", ctx do
-      result =
-        Entities.update_mirror_settings(ctx.published, %{
-          "mirror_definitions" => true,
-          "mirror_data" => false
-        })
+    test "update_mirror_settings/3 persists the mirror keys and nothing else it is handed", ctx do
+      assert {:ok, updated} =
+               Entities.update_mirror_settings(ctx.published, %{
+                 "mirror_definitions" => true,
+                 "mirror_data" => false,
+                 "public_form_enabled" => true
+               })
 
-      # Either {:ok, entity} or {:error, _} depending on actor_uuid
-      # threading; both shapes exercise the function body.
-      assert match?({:ok, _}, result) or match?({:error, _}, result)
+      assert updated.settings["mirror_definitions"] == true
+      assert updated.settings["mirror_data"] == false
+      refute Map.has_key?(updated.settings, "public_form_enabled")
+      assert Entities.get_entity!(ctx.published.uuid).settings == updated.settings
     end
 
-    test "list_entities_with_mirror_status/0 returns annotated entities" do
-      results = Entities.list_entities_with_mirror_status()
-      assert is_list(results)
+    test "update_mirror_settings/3 does not persist unsaved settings on the struct it is given",
+         ctx do
+      working_copy = %{ctx.published | settings: %{"public_form_enabled" => true}}
+
+      assert {:ok, _} = Entities.update_mirror_settings(working_copy, %{"mirror_data" => true})
+
+      stored = Entities.get_entity!(ctx.published.uuid).settings
+      assert stored["mirror_data"] == true
+      refute Map.has_key?(stored, "public_form_enabled")
     end
 
-    test "enable_all_definitions_mirror / disable_all_definitions_mirror" do
-      result1 = Entities.enable_all_definitions_mirror()
-      result2 = Entities.disable_all_definitions_mirror()
-      # Returns count or :ok or {:ok, _}; just confirm no crash.
-      _ = {result1, result2}
+    test "list_entities_with_mirror_status/0 reports each entity's switches", ctx do
+      {:ok, _} = Entities.update_mirror_settings(ctx.published, %{"mirror_definitions" => true})
+
+      status =
+        Entities.list_entities_with_mirror_status()
+        |> Enum.find(&(&1.name == ctx.published.name))
+
+      assert %{mirror_definitions: true, mirror_data: false} = status
     end
 
-    test "enable_all_data_mirror / disable_all_data_mirror" do
-      _ = Entities.enable_all_data_mirror()
-      _ = Entities.disable_all_data_mirror()
+    test "enable_all_definitions_mirror / disable_all_definitions_mirror", ctx do
+      total = length(Entities.list_entities())
+
+      assert {:ok, ^total} = Entities.enable_all_definitions_mirror()
+      assert Entities.mirror_definitions_enabled?(Entities.get_entity!(ctx.published.uuid))
+
+      assert {:ok, ^total} = Entities.disable_all_definitions_mirror()
+      refute Entities.mirror_definitions_enabled?(Entities.get_entity!(ctx.published.uuid))
+    end
+
+    test "enable_all_data_mirror / disable_all_data_mirror", ctx do
+      total = length(Entities.list_entities())
+
+      assert {:ok, ^total} = Entities.enable_all_data_mirror()
+      assert Entities.mirror_data_enabled?(Entities.get_entity!(ctx.published.uuid))
+
+      assert {:ok, ^total} = Entities.disable_all_data_mirror()
+      refute Entities.mirror_data_enabled?(Entities.get_entity!(ctx.published.uuid))
+    end
+
+    test "the setters record the acting admin, not the entity's creator", ctx do
+      acting = Ecto.UUID.generate()
+      uuid = ctx.published.uuid
+
+      {:ok, _} = Entities.update_sort_mode(ctx.published, "manual", actor_uuid: acting)
+
+      {:ok, _} =
+        Entities.set_entity_translation(
+          Entities.get_entity!(uuid),
+          "es-ES",
+          %{"display_name" => "Publicado"},
+          actor_uuid: acting
+        )
+
+      {:ok, _} =
+        Entities.remove_entity_translation(Entities.get_entity!(uuid), "es-ES",
+          actor_uuid: acting
+        )
+
+      {:ok, _} =
+        Entities.update_mirror_settings(Entities.get_entity!(uuid), %{"mirror_data" => true},
+          actor_uuid: acting
+        )
+
+      rows =
+        Repo.query!(
+          "SELECT actor_uuid FROM phoenix_kit_activities WHERE action = 'entity.updated' AND resource_uuid = $1",
+          [Ecto.UUID.dump!(uuid)]
+        ).rows
+
+      assert length(rows) == 4
+      assert Enum.all?(rows, fn [actor] -> Ecto.UUID.load!(actor) == acting end)
     end
   end
 

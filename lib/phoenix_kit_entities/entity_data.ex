@@ -149,6 +149,8 @@ defmodule PhoenixKitEntities.EntityData do
 
   @valid_statuses ~w(draft published archived trashed)
   @soft_delete_status "trashed"
+  # What a trashed row may be restored to.
+  @restorable_statuses @valid_statuses -- [@soft_delete_status]
 
   # Field types whose stored value must be a single JSON scalar (or
   # absent) — see `validate_field_type/3`'s shape guard below.
@@ -424,7 +426,10 @@ defmodule PhoenixKitEntities.EntityData do
     end
   end
 
-  @numeric_field_types ~w(number decimal)
+  # `boolean` rides the same coercion: a browser posts a toggle as the
+  # strings "true"/"false" (see `FormBuilder.build_field/3`), and
+  # `validate_boolean_field/3` accepts only a real boolean.
+  @coerced_field_types ~w(number decimal boolean)
 
   # The public form path (`EntityFormController`) writes straight into this
   # changeset without ever going through `FormBuilder.validate_type/2` — so
@@ -495,7 +500,10 @@ defmodule PhoenixKitEntities.EntityData do
   defp normalize_numeric_field(data, field_def) do
     key = field_def["key"]
 
-    if field_def["type"] in @numeric_field_types and Map.has_key?(data, key) do
+    # An absent value stays absent: nil is "not set" (and, in a secondary
+    # language's map, "use the primary's"), which a boolean cast would
+    # turn into an explicit false.
+    if field_def["type"] in @coerced_field_types and not is_nil(Map.get(data, key)) do
       case FormBuilder.cast_field(field_def, data[key]) do
         {:ok, coerced} -> Map.put(data, key, coerced)
         {:error, _messages} -> data
@@ -671,10 +679,50 @@ defmodule PhoenixKitEntities.EntityData do
       "relation" ->
         validate_relation_shape(changeset, field_def, value)
 
+      "file" ->
+        validate_file_field(changeset, field_def, value)
+
       _ ->
         changeset
     end
   end
+
+  # A `file` value is a list of flat metadata maps (filename, size, …).
+  # No input in this library submits one, so every value arrives from
+  # outside; the gate keeps an arbitrary nested or oversized term out of
+  # storage and away from the renderers that read `file["filename"]`.
+  @file_max_entries 50
+  @file_max_keys 20
+  @file_max_string_bytes 1024
+
+  defp validate_file_field(changeset, field_def, value) do
+    if file_list_shape?(value) do
+      changeset
+    else
+      add_error(
+        changeset,
+        :data,
+        gettext("field '%{label}' must be a list of files", label: field_def["label"])
+      )
+    end
+  end
+
+  defp file_list_shape?(value) when is_list(value),
+    do: length(value) <= @file_max_entries and Enum.all?(value, &file_entry_shape?/1)
+
+  defp file_list_shape?(_value), do: false
+
+  defp file_entry_shape?(entry) when is_map(entry) and not is_struct(entry) do
+    map_size(entry) <= @file_max_keys and
+      Enum.all?(entry, fn {key, value} ->
+        file_scalar?(key) and is_binary(key) and file_scalar?(value)
+      end)
+  end
+
+  defp file_entry_shape?(_entry), do: false
+
+  defp file_scalar?(value) when is_binary(value), do: byte_size(value) <= @file_max_string_bytes
+  defp file_scalar?(value), do: is_number(value) or is_boolean(value) or is_nil(value)
 
   # Shape only (uuids, one or many); whether each uuid is a record of the
   # target is `normalize_and_check_relations/1`'s job, which needs the DB.
@@ -755,7 +803,10 @@ defmodule PhoenixKitEntities.EntityData do
   # crafted write cannot land a shape that crashes uuid-resolving
   # renderers downstream.
   defp validate_media_field(changeset, field_def, value) do
-    with true <- is_binary(value),
+    # The 36-character textual form only: `Ecto.UUID.cast/1` also takes
+    # any raw 16-byte binary, which would let an arbitrary 16-character
+    # string be stored as a file reference.
+    with true <- is_binary(value) and byte_size(value) == 36,
          {:ok, _} <- Ecto.UUID.cast(value) do
       changeset
     else
@@ -879,7 +930,9 @@ defmodule PhoenixKitEntities.EntityData do
   end
 
   defp validate_date_field(changeset, field_def, value) do
-    if is_binary(value) && Regex.match?(~r/^\d{4}-\d{2}-\d{2}$/, value) do
+    # Parsed, not pattern-matched: "9999-99-99" has the right shape and
+    # is no date.
+    if is_binary(value) && match?({:ok, _}, Date.from_iso8601(value)) do
       changeset
     else
       add_error(
@@ -1804,21 +1857,25 @@ defmodule PhoenixKitEntities.EntityData do
   """
   @spec next_position(binary()) :: non_neg_integer()
   def next_position(entity_uuid) when is_binary(entity_uuid) do
-    # FOR UPDATE locks matching rows within a transaction to prevent
-    # concurrent creates from reading the same max position.
-    # NOTE: The lock only takes effect inside a repo().transaction/1 block.
-    # Called internally by create/1 which wraps in a transaction.
-    # Fetch individual positions with row-level lock, then compute max in Elixir.
-    # PostgreSQL does not allow FOR UPDATE with aggregate functions.
-    positions =
-      from(d in __MODULE__,
-        where: d.entity_uuid == ^entity_uuid,
-        select: d.position,
-        lock: "FOR UPDATE"
-      )
-      |> repo().all()
+    # One ordered insert at a time per entity: a transaction-scoped
+    # advisory lock, so concurrent creates cannot read the same maximum.
+    # It only holds inside a transaction — `create/2` opens one. Locking
+    # the rows themselves (`FOR UPDATE` over the whole entity) would make
+    # every create wait on every row and still miss the empty-entity case.
+    lock_positions(entity_uuid)
 
-    Enum.max(positions, fn -> 0 end) + 1
+    # `position` is nullable; `max/1` skips NULLs and is NULL over no rows.
+    max_position =
+      from(d in __MODULE__, where: d.entity_uuid == ^entity_uuid, select: max(d.position))
+      |> repo().one()
+
+    (max_position || 0) + 1
+  end
+
+  defp lock_positions(entity_uuid) do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      "phoenix_kit_entities:positions:#{entity_uuid}"
+    ])
   end
 
   @doc """
@@ -2374,14 +2431,28 @@ defmodule PhoenixKitEntities.EntityData do
     # Stash the row's current status in metadata so restore can return
     # to it. Without this, restore unconditionally lands on "published"
     # and a trashed draft silently goes live on restore.
-    metadata =
-      (entity_data.metadata || %{})
-      |> Map.put("trashed_from_status", entity_data.status)
+    #
+    # The status stashed is the STORED one, read under `FOR UPDATE`: the
+    # struct a caller holds can be a page loaded before someone else
+    # changed the status, or before someone else trashed the row — and
+    # trashing a trashed row would stash "trashed" over the real status.
+    txn =
+      repo().transaction(fn ->
+        from(d in __MODULE__, where: d.uuid == ^entity_data.uuid, lock: "FOR UPDATE")
+        |> repo().one()
+        |> trash_stored_row(entity_data)
+      end)
 
-    entity_data
-    |> status_only_changeset(@soft_delete_status, metadata)
-    |> repo().update()
-    |> notify_data_event(:trashed, opts)
+    case txn do
+      {:ok, trashed} ->
+        notify_data_event({:ok, trashed}, :trashed, opts)
+
+      {:error, :already_trashed} ->
+        {:error, :already_trashed}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        notify_data_event({:error, changeset}, :trashed, opts)
+    end
   end
 
   def trash(%__MODULE__{} = entity_data), do: trash(entity_data, [])
@@ -2389,9 +2460,7 @@ defmodule PhoenixKitEntities.EntityData do
   @doc """
   Restores a trashed entity data record. The status it returns to is
   the one stashed in `metadata["trashed_from_status"]` when the row was
-  trashed — defaulting to `"draft"` if no stash is present (e.g. for
-  rows trashed via `bulk_trash/2`, or rows trashed before this stash
-  shipped).
+  trashed — defaulting to `"draft"` if no stash is present.
 
   Returns `{:error, :not_trashed}` if the record isn't currently trashed —
   guardrail against re-publishing arbitrary records via the trash-restore
@@ -2407,21 +2476,45 @@ defmodule PhoenixKitEntities.EntityData do
   def restore_from_trash(entity_data, opts \\ [])
 
   def restore_from_trash(%__MODULE__{status: @soft_delete_status} = entity_data, opts) do
-    prior_status =
-      case entity_data.metadata do
-        %{"trashed_from_status" => s} when s in @valid_statuses and s != @soft_delete_status -> s
-        _ -> "draft"
-      end
+    # Like trash, restore must check the stored row: a stale tab may hold
+    # an older stash, or the record may no longer be in the trash at all.
+    txn =
+      repo().transaction(fn ->
+        from(d in __MODULE__, where: d.uuid == ^entity_data.uuid, lock: "FOR UPDATE")
+        |> repo().one()
+        |> restore_stored_row()
+      end)
 
-    metadata = (entity_data.metadata || %{}) |> Map.delete("trashed_from_status")
+    case txn do
+      {:ok, restored} ->
+        notify_data_event({:ok, restored}, :restored, opts)
 
-    entity_data
-    |> status_only_changeset(prior_status, metadata)
-    |> repo().update()
-    |> notify_data_event(:restored, opts)
+      {:error, :not_trashed} ->
+        {:error, :not_trashed}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        notify_data_event({:error, changeset}, :restored, opts)
+    end
   end
 
   def restore_from_trash(%__MODULE__{}, _opts), do: {:error, :not_trashed}
+
+  defp restore_stored_row(%__MODULE__{status: @soft_delete_status} = row) do
+    prior_status =
+      case row.metadata do
+        %{"trashed_from_status" => s} when s in @restorable_statuses -> s
+        _ -> "draft"
+      end
+
+    metadata = Map.delete(row.metadata || %{}, "trashed_from_status")
+
+    case row |> status_only_changeset(prior_status, metadata) |> repo().update() do
+      {:ok, restored} -> restored
+      {:error, changeset} -> repo().rollback(changeset)
+    end
+  end
+
+  defp restore_stored_row(_row), do: repo().rollback(:not_trashed)
 
   # Focused changeset for trash / restore — only touches `:status`,
   # `:metadata`, and `:date_updated`. Skips the full per-field validation
@@ -2429,6 +2522,21 @@ defmodule PhoenixKitEntities.EntityData do
   # longer valid (e.g. the entity gained a required field after the row
   # was created) must still be retirable via trash. The bulk paths
   # bypass changesets entirely; this keeps single-record + bulk in sync.
+  defp trash_stored_row(%__MODULE__{status: @soft_delete_status}, _given),
+    do: repo().rollback(:already_trashed)
+
+  # A row deleted meanwhile (`nil`) is written from the caller's struct, so
+  # the stale write raises as any update of a missing row does.
+  defp trash_stored_row(stored, given) do
+    row = stored || given
+    metadata = Map.put(row.metadata || %{}, "trashed_from_status", row.status)
+
+    case row |> status_only_changeset(@soft_delete_status, metadata) |> repo().update() do
+      {:ok, trashed} -> trashed
+      {:error, changeset} -> repo().rollback(changeset)
+    end
+  end
+
   defp status_only_changeset(entity_data, status, metadata) do
     entity_data
     |> cast(%{status: status, metadata: metadata, date_updated: UtilsDate.utc_now()}, [
@@ -3106,6 +3214,9 @@ defmodule PhoenixKitEntities.EntityData do
       }
     })
 
+    # Per affected record, so every open view of them refreshes.
+    broadcast_bulk_change(uuids)
+
     result
   end
 
@@ -3238,8 +3349,9 @@ defmodule PhoenixKitEntities.EntityData do
   Bulk soft-deletes records by setting their status to `"trashed"`.
 
   Returns `{count, nil}` for the number of records actually trashed
-  (already-trashed records are skipped via the WHERE clause). Logs a
-  single `entity_data.bulk_trashed` row.
+  (already-trashed records are skipped via the WHERE clause). Each row's
+  previous status is stashed in `metadata["trashed_from_status"]`, as
+  `trash/2` does. Logs a single `entity_data.bulk_trashed` row.
 
   ## Examples
 
@@ -3253,9 +3365,24 @@ defmodule PhoenixKitEntities.EntityData do
     {count, _} =
       result =
       from(d in __MODULE__,
-        where: d.uuid in ^uuids and d.status != ^@soft_delete_status
+        where: d.uuid in ^uuids and d.status != ^@soft_delete_status,
+        # The status each row leaves is stashed the way `trash/2` stashes
+        # it, so a restore can return the row to it. Postgres evaluates
+        # every SET expression against the row's old values.
+        update: [
+          set: [
+            status: ^@soft_delete_status,
+            date_updated: ^now,
+            metadata:
+              fragment(
+                "jsonb_set(coalesce(?, '{}'::jsonb), '{trashed_from_status}', to_jsonb(?::text), true)",
+                d.metadata,
+                d.status
+              )
+          ]
+        ]
       )
-      |> repo().update_all(set: [status: @soft_delete_status, date_updated: now])
+      |> repo().update_all([])
 
     PhoenixKitEntities.ActivityLog.log(%{
       action: "entity_data.bulk_trashed",
@@ -3272,7 +3399,9 @@ defmodule PhoenixKitEntities.EntityData do
   end
 
   @doc """
-  Bulk restores trashed records to `"published"` status.
+  Bulk restores trashed records, each to the status it was trashed from
+  (`"draft"` when the row carries no stash) — the same rule as
+  `restore_from_trash/2`.
 
   Only rows currently `"trashed"` are touched. Logs
   `entity_data.bulk_restored` with the affected count.
@@ -3289,9 +3418,24 @@ defmodule PhoenixKitEntities.EntityData do
     {count, _} =
       result =
       from(d in __MODULE__,
-        where: d.uuid in ^uuids and d.status == ^@soft_delete_status
+        where: d.uuid in ^uuids and d.status == ^@soft_delete_status,
+        # Same rule as `restore_from_trash/2`: back to the stashed status,
+        # "draft" when there is none, and the stash is consumed.
+        update: [
+          set: [
+            status:
+              fragment(
+                "CASE WHEN ? ->> 'trashed_from_status' = ANY(?) THEN ? ->> 'trashed_from_status' ELSE 'draft' END",
+                d.metadata,
+                type(^@restorable_statuses, {:array, :string}),
+                d.metadata
+              ),
+            date_updated: ^now,
+            metadata: fragment("? - 'trashed_from_status'", d.metadata)
+          ]
+        ]
       )
-      |> repo().update_all(set: [status: "published", date_updated: now])
+      |> repo().update_all([])
 
     PhoenixKitEntities.ActivityLog.log(%{
       action: "entity_data.bulk_restored",

@@ -37,18 +37,6 @@ defmodule PhoenixKitEntities.EventsTest do
     end
   end
 
-  describe "subscribe_to_entity_presence/1" do
-    test "subscribes to entity presence topic" do
-      assert :ok = Events.subscribe_to_entity_presence("entity-uuid")
-    end
-  end
-
-  describe "subscribe_to_data_presence/2" do
-    test "subscribes to data presence topic" do
-      assert :ok = Events.subscribe_to_data_presence("entity-uuid", "data-uuid")
-    end
-  end
-
   describe "entity definition broadcasts" do
     setup do
       Events.subscribe_to_entities()
@@ -140,16 +128,6 @@ defmodule PhoenixKitEntities.EventsTest do
       Events.broadcast_entity_form_change("form-abc", %{field: "name"})
       assert_receive {:entity_form_change, "form-abc", %{field: "name"}, nil}
     end
-
-    test "broadcast_entity_form_sync_request/2 sends sync request" do
-      Events.broadcast_entity_form_sync_request("form-abc", "requester-1")
-      assert_receive {:entity_form_sync_request, "form-abc", "requester-1"}
-    end
-
-    test "broadcast_entity_form_sync_response/3 sends sync response" do
-      Events.broadcast_entity_form_sync_response("form-abc", "requester-1", %{data: "state"})
-      assert_receive {:entity_form_sync_response, "form-abc", "requester-1", %{data: "state"}}
-    end
   end
 
   describe "data form collaborative broadcasts" do
@@ -161,16 +139,6 @@ defmodule PhoenixKitEntities.EventsTest do
     test "broadcast_data_form_change/4 sends form change event" do
       Events.broadcast_data_form_change("entity-1", "record-1", %{field: "title"}, source: "s1")
       assert_receive {:data_form_change, "entity-1", "record-1", %{field: "title"}, "s1"}
-    end
-
-    test "broadcast_data_form_sync_request/3 sends sync request" do
-      Events.broadcast_data_form_sync_request("entity-1", "record-1", "requester-1")
-      assert_receive {:data_form_sync_request, "entity-1", "record-1", "requester-1"}
-    end
-
-    test "broadcast_data_form_sync_response/4 sends sync response" do
-      Events.broadcast_data_form_sync_response("entity-1", "record-1", "req-1", %{state: 1})
-      assert_receive {:data_form_sync_response, "entity-1", "record-1", "req-1", %{state: 1}}
     end
   end
 

@@ -6,26 +6,27 @@ defmodule Mix.Tasks.PhoenixKitEntities.Import do
 
   Each JSON file contains both the entity definition and all its data records.
 
-  Imports from the configured mirror path (default: priv/entities/).
+  Imports from the configured mirror path (default: priv/entities/), or
+  from `--input` for this run only — the configured path is not changed.
 
   ## Usage
 
       # Import from default path (priv/entities/)
-      mix phoenix_kit.entities.import
+      mix phoenix_kit_entities.import
 
       # Import with specific conflict resolution
-      mix phoenix_kit.entities.import --on-conflict skip
-      mix phoenix_kit.entities.import --on-conflict overwrite
-      mix phoenix_kit.entities.import --on-conflict merge
+      mix phoenix_kit_entities.import --on-conflict skip
+      mix phoenix_kit_entities.import --on-conflict overwrite
+      mix phoenix_kit_entities.import --on-conflict merge
 
       # Dry-run to preview changes
-      mix phoenix_kit.entities.import --dry-run
+      mix phoenix_kit_entities.import --dry-run
 
       # Import specific entity
-      mix phoenix_kit.entities.import --entity brand
+      mix phoenix_kit_entities.import --entity brand
 
       # Import from custom path
-      mix phoenix_kit.entities.import --input /path/to/import
+      mix phoenix_kit_entities.import --input /path/to/import
 
   ## Options
 
@@ -50,21 +51,20 @@ defmodule Mix.Tasks.PhoenixKitEntities.Import do
   ## Examples
 
       # Preview what would be imported
-      mix phoenix_kit.entities.import --dry-run
+      mix phoenix_kit_entities.import --dry-run
 
       # Import and overwrite any conflicts
-      mix phoenix_kit.entities.import --on-conflict overwrite
+      mix phoenix_kit_entities.import --on-conflict overwrite
 
       # Import from a backup directory
-      mix phoenix_kit.entities.import --input ./backup/entities
+      mix phoenix_kit_entities.import --input ./backup/entities
 
       # Import just the brand entity without confirmation
-      mix phoenix_kit.entities.import --entity brand -y
+      mix phoenix_kit_entities.import --entity brand -y
   """
 
   use Mix.Task
 
-  alias PhoenixKit.Settings
   alias PhoenixKitEntities.Mirror.{Importer, Storage}
 
   @impl Mix.Task
@@ -73,14 +73,33 @@ defmodule Mix.Tasks.PhoenixKitEntities.Import do
 
     {options, _remaining} = parse_options(args)
 
-    # Override path if specified
-    if input_path = options[:input] do
-      Settings.update_setting("entities_mirror_path", input_path)
-    end
-
     # Parse conflict strategy
     strategy = parse_strategy(options[:on_conflict])
 
+    case options[:input] do
+      nil ->
+        run_import(strategy, options)
+
+      input_path ->
+        Storage.with_root(input_dir!(input_path), fn -> run_import(strategy, options) end)
+    end
+  end
+
+  # `--input` names the directory for THIS run (`Storage.with_root/2`); the
+  # `entities_mirror_path` setting is left alone. An operator's own path is
+  # not held to the setting's containment rule — see `Storage.with_root/2`.
+  defp input_dir!(input_path) do
+    expanded = Path.expand(input_path)
+
+    unless File.dir?(expanded) do
+      Mix.shell().error("Input directory not found: #{expanded}")
+      exit({:shutdown, 1})
+    end
+
+    expanded
+  end
+
+  defp run_import(strategy, options) do
     cond do
       options[:dry_run] ->
         run_dry_run(options)
@@ -171,7 +190,7 @@ defmodule Mix.Tasks.PhoenixKitEntities.Import do
 
       :conflict ->
         Mix.shell().info(
-          "  [CHANGED] #{entity.name} (existing id: #{entity.definition.existing_id})"
+          "  [CHANGED] #{entity.name} (existing id: #{entity.definition.existing_uuid})"
         )
 
       :error ->
@@ -211,7 +230,7 @@ defmodule Mix.Tasks.PhoenixKitEntities.Import do
 
       :conflict ->
         Mix.shell().info(
-          "  [CHANGED] #{entity_name}/#{record.slug} (existing id: #{record.existing_id})"
+          "  [CHANGED] #{entity_name}/#{record.slug} (existing id: #{record.existing_uuid})"
         )
 
       :error ->

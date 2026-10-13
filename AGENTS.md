@@ -219,6 +219,13 @@ Repo-local aliases:
   in `:persistent_term` goes stale on code reload and every delete then fails
   with `{:error, :delete_guard_error}`. `reorder_entities/2` is deliberately
   outside the interception (`position` is in no owner contract).
+- **A record has a read-only page** at `/admin/entities/:slug/data/:uuid`
+  (`Web.DataShow`, no form, no editing lock); the editor stays at `…/edit`.
+  Core derives a view's permission from its namespace
+  (`PhoenixKitEntities.Web.*` → `"entities"`), so the gate is the same as
+  `Web.DataForm`'s. Hosts link to the editor with
+  `PhoenixKitEntities.admin_edit_path/2` and
+  `assign_admin_edit(…, permission: "entities")`.
 - **Entity names** are snake_case, start with a letter, 2–50 chars:
   `^[a-z][a-z0-9_]*$`. **Field definitions** require string keys:
   `%{"type" => "text", "key" => "name", "label" => "Name"}`.
@@ -246,14 +253,47 @@ Repo-local aliases:
 - **Public form controller defense** — the POST at
   `/entities/:entity_slug/submit` is intentionally un-authed. Protection is a
   honeypot field, a minimum submission time and a Hammer per-IP-per-entity rate
-  limit. The rate-limit key's IP is validated against an IPv4 regex with
-  RFC1918/loopback rejection so `X-Forwarded-For` spoofing cannot multiply
-  buckets. Stored metadata (user-agent, referer) is capped at 255 chars to
-  prevent JSONB bloat.
+  limit. The client address (rate-limit key and stored metadata alike) comes
+  from core's `PhoenixKit.Utils.IpAddress.extract_from_conn/1`, never from a
+  header read here: `X-Forwarded-For` counts only when the TCP peer is a
+  loopback or private address, and then only its LAST entry, so a direct
+  client rotating the header stays in one bucket. Stored metadata (user-agent,
+  referer) is capped at 255 chars to prevent JSONB bloat. Every submitted
+  value is size-capped (the field's `max_length`, else a flat ceiling);
+  `relation`, `file` and `heading` fields never take a public value; an
+  archived entity refuses submissions.
+- **Public-form statistics are one atomic bump**
+  (`bump_public_form_stats/2`: `update_all` + `jsonb_set` on the stats key).
+  A submission is not an edit of the entity — never route it through
+  `update_entity/3`, which logs `entity.updated`, broadcasts a schema change
+  to every open record editor and rewrites the whole settings map. A request
+  the rate limiter refused writes nothing. Settings saves through
+  `update_entity/3` preserve the stored stats under a row lock; the entity
+  form passes `reset_public_form_stats: true` only for an explicit reset.
+- **A form's working copy never reaches the row before a save.** `Web.DataForm`
+  keeps `data_record` as the persisted row and puts a peer's unsaved typing in
+  the changeset only (folding it into the struct makes the next save an empty
+  changeset that reports success). `Web.EntityForm` keeps unsaved settings on
+  its socket entity; a write that happens outside the save — the backup
+  switches, via `update_mirror_settings/3` — reloads the stored row and writes
+  only its own keys.
+- **Restore returns a record to the status it was trashed from.** `trash/2`
+  and `bulk_trash/2` stash it in `metadata["trashed_from_status"]`; both
+  restores consume the stash and fall back to `"draft"`, never `"published"` —
+  flagged public submissions are stored as drafts. Single-record restore
+  re-reads the status and metadata under `FOR UPDATE`, refusing a stale
+  restore when the stored row is no longer trashed.
+- **A new record's position** is `max(position) + 1` under a per-entity
+  `pg_advisory_xact_lock` (`phoenix_kit_entities:positions:<uuid>`); `position`
+  is nullable, so never compute it in Elixir over the selected rows.
 - **Mirror path containment** — `mirror/storage.ex` reads its base directory
   from the `entities_mirror_path` setting, resolves it through `Path.expand/1`
-  and validates it against the host's `priv/entities` root, so an admin-edited
-  setting cannot write exports to an arbitrary filesystem location.
+  and validates it against the host app's directory, so an admin-edited
+  setting cannot write exports to an arbitrary filesystem location; a path
+  outside it silently falls back to the default. The mix tasks' `--input` /
+  `--output` go through `Storage.with_root/2` instead: one run, one process,
+  no setting written, and no containment — a path typed by whoever runs code
+  on the box is a different trust level from a value saved in the web UI.
 - **Errors are atoms, not strings.** Public API returns
   `:cannot_remove_primary`, `:not_multilang`, `:entity_not_found`,
   `:referenced_by_external`, … and tagged tuples (`{:invalid_field_type,
@@ -352,6 +392,7 @@ lib/phoenix_kit_entities/
     ├── entity_form.ex                           # Entity create/edit
     ├── data_navigator.ex                        # Data record browser (filters, bulk actions, trash view)
     ├── data_form.ex                             # Data record create/edit
+    ├── data_show.ex                             # Data record read-only view (Edit / Back)
     ├── entities_settings.ex                     # Module settings + import/export modal
     ├── project_data_live.ex                     # Read-only records tab for the projects hub
     └── hooks.ex                                 # on_mount: Events subscription + presence tracking
@@ -522,6 +563,10 @@ Support modules under `test/support/`:
   marker (see Landmines).
 - `Test.LiveDatabaseGuard` — refuses a test database that is not named like
   one, or is listed in `PHOENIX_KIT_LIVE_DATABASES`, before any connection.
+- `Test.MirrorDir` — a scratch mirror directory INSIDE the containment
+  boundary; `use!/1` raises unless `Storage.root_path/0` really resolves to
+  it. A mirror test that points the setting at `System.tmp_dir!/0` reads and
+  writes the shared default directory instead.
 
 Excluded tags: `:integration` without a DB, `:requires_phoenix_kit_i18n_api`
 when core lacks `PhoenixKit.Dashboard.Tab.localized_label/1`, and

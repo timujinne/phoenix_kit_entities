@@ -300,4 +300,15 @@ exclude =
   ]
   |> Enum.filter(& &1)
 
+# Tests that switch a mirror on without naming a directory export into the
+# default one, which in this suite sits under the build directory. Start
+# each run with it empty, so a "import everything" test never picks up what
+# earlier runs left behind. Only ever removed when it IS under the build
+# directory.
+default_mirror_dir = PhoenixKitEntities.Mirror.Storage.default_path()
+
+if String.starts_with?(default_mirror_dir, Mix.Project.build_path() <> "/") do
+  File.rm_rf!(default_mirror_dir)
+end
+
 ExUnit.start(exclude: exclude)

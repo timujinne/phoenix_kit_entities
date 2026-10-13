@@ -83,39 +83,11 @@ defmodule PhoenixKitEntities.Web.DataForm do
     end
   end
 
-  def handle_params(%{"entity_id" => entity_uuid, "id" => id} = params, _uri, socket) do
-    locale = params["locale"] || socket.assigns[:current_locale]
-
-    # Edit mode with ID (backwards compat). Record loaded raw — see the
-    # entity_slug clause above for why `:lang` must not touch it.
-    entity = Entities.get_entity!(entity_uuid, lang: locale)
-    data_record = EntityData.get!(id)
-
-    if owns_record?(entity, data_record) do
-      changeset = EntityData.change(data_record)
-
-      {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
-    else
-      {:noreply, redirect_to_owning_entity(socket, data_record)}
-    end
-  end
-
   def handle_params(%{"entity_slug" => entity_slug} = params, _uri, socket) do
     locale = params["locale"] || socket.assigns[:current_locale]
 
     # Create mode with slug
     entity = Entities.get_entity_by_name(entity_slug, lang: locale)
-    data_record = %EntityData{entity_uuid: entity.uuid}
-    changeset = EntityData.change(data_record)
-
-    {:noreply, hydrate_data_form(socket, entity, data_record, changeset, locale)}
-  end
-
-  def handle_params(%{"entity_id" => entity_uuid} = params, _uri, socket) do
-    locale = params["locale"] || socket.assigns[:current_locale]
-
-    # Create mode with ID (backwards compat)
-    entity = Entities.get_entity!(entity_uuid, lang: locale)
     data_record = %EntityData{entity_uuid: entity.uuid}
     changeset = EntityData.change(data_record)
 
@@ -1629,34 +1601,23 @@ defmodule PhoenixKitEntities.Web.DataForm do
     assign(socket, :has_unsaved_changes, true)
   end
 
+  # A peer's form state is UNSAVED typing: it goes into the changeset
+  # only. `data_record` stays the persisted row — were the remote values
+  # folded into it, a save from this tab would cast the same values
+  # against a struct that already holds them, yield an empty changeset,
+  # and report success having written nothing.
   defp apply_remote_data_params(socket, params) when is_map(params) do
-    # Build the changeset WITHOUT enforcing validations yet
-    # This ensures we capture the exact remote state, even invalid values
     changeset =
       socket.assigns.data_record
-      |> Ecto.Changeset.cast(params, [
-        :entity_uuid,
-        :title,
-        :slug,
-        :status,
-        :parent_uuid,
-        :data,
-        :metadata,
-        :created_by_uuid
-      ])
+      |> EntityData.change(params)
       |> Map.put(:action, :validate)
 
-    # Apply changes to get the updated record with remote values
-    updated_record = Ecto.Changeset.apply_changes(changeset)
-
-    # Now create a validated changeset for display
-    # This will show validation errors but preserve the remote values
-    validated_changeset = EntityData.change(updated_record)
-
     socket
-    |> assign(:data_record, updated_record)
-    |> assign(:changeset, validated_changeset)
-    |> sync_parent_pick(updated_record)
+    |> assign(:changeset, changeset)
+    |> assign(
+      :parent_pick,
+      Ecto.Changeset.get_field(changeset, :parent_uuid) || Tree.root_id()
+    )
     |> ensure_relation_labels()
     |> assign(:has_unsaved_changes, true)
   end
