@@ -13,5 +13,10 @@ defmodule PhoenixKitEntities.Gettext do
   catalogues live in core's own package, so strings extracted against it
   from here would never end up in any `.po` file this package ships.
   """
-  use Gettext.Backend, otp_app: :phoenix_kit_entities
+  # One compiled module per locale and domain: the catalogues are large, and
+  # split modules compile in parallel instead of one long serial compile that
+  # blocks every app depending on this package. Lookups are unchanged.
+  use Gettext.Backend,
+    otp_app: :phoenix_kit_entities,
+    split_module_by: [:locale, :domain]
 end
