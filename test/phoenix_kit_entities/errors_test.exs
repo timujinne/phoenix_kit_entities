@@ -80,6 +80,16 @@ defmodule PhoenixKitEntities.ErrorsTest do
                "a record is not valid (slug: should be at most 3 character(s))"
     end
 
+    test "{:validation_failed, changeset} survives a typed %{word} with no binding" do
+      changeset =
+        {%{}, %{data: :map}}
+        |> Ecto.Changeset.cast(%{}, [:data])
+        |> Ecto.Changeset.add_error(:data, "field '50%{zz_no_such_atom_9f3}' is invalid")
+
+      assert Errors.message({:validation_failed, changeset}) ==
+               "a record is not valid (data: field '50%{zz_no_such_atom_9f3}' is invalid)"
+    end
+
     test "{:rolled_back, _} says nothing was imported, and why" do
       assert Errors.message({:rolled_back, {:write_failed, invalid_changeset()}}) ==
                "Nothing was imported: a record is not valid (slug: should be at most 3 character(s))"

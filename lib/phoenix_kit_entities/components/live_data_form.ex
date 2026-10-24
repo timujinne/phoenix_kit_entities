@@ -168,7 +168,7 @@ defmodule PhoenixKitEntities.Components.LiveDataForm do
   parent treats each message as "here is the current server copy" rather
   than assuming `:submitted` is always the last word — read the record's
   own `status`/fields rather than inferring lifecycle order from message
-  arrival, the way the host app (andi) does. This is a *single*
+  arrival, the way the host app does. This is a *single*
   component instance racing its own two persist paths — distinct from
   the *cross-session* race (a second tab's stale `:edit` instance of the
   same record) that `persist_statuses` guards against; the two are

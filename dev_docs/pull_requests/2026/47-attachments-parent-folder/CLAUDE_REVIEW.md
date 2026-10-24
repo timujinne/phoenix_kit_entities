@@ -30,8 +30,8 @@ just viewing a data form wrote to storage.
   folder's whole subtree plus `FolderLink`ed files. `process_upload/3` calls
   `maybe_set_folder/2` on new and duplicate uploads. The CHANGELOG's "both
   browsing and new uploads" is accurate.
-- **The contract matches the host.** The andi host config sets
-  `phoenix_kit_entities: attachments_parent_folder: {Andi.Media.Containers,
+- **The contract matches the host.** The host config sets
+  `phoenix_kit_entities: attachments_parent_folder: {HostApp.Media.Containers,
   :parent_for}`. `Containers.parent_for(:entity_file, actor, %{entity_name:
   name})` exists and reads `ctx[:entity_name]`. The kind atom and subject shape
   are the same as in the sibling modules (projects, staff, locations,
@@ -49,7 +49,7 @@ just viewing a data form wrote to storage.
 `Attachments.scope_folder/2` was called from `hydrate_data_form/5`, which runs
 from `handle_params/3`. `handle_params/3` runs on the dead HTTP render **and**
 again on the connected mount. The real host hook is not a lookup:
-`Andi.Media.Containers.parent_for(:entity_file, …)` calls
+`HostApp.Media.Containers.parent_for(:entity_file, …)` calls
 `ensure_path(:entities, [name], actor)`, which find-or-creates
 `Entities/<entity_name>` (and restores a trashed one). As merged, it did so:
 

@@ -181,15 +181,25 @@ defmodule PhoenixKitEntities.Errors do
   end
 
   # Field names and already-translated messages only — never the values.
+  #
+  # Bindings are matched by name, never through `String.to_existing_atom/1`:
+  # a message can carry user-typed text (a field label from an imported
+  # file) that already contains a `%{word}`, and no atom need exist for it.
+  # A placeholder with no binding stays as written.
   defp changeset_errors(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Regex.replace(~r/%{(\w+)}/, message, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
+      Regex.replace(~r/%{(\w+)}/, message, &binding_text(&1, &2, opts))
     end)
     |> Enum.map_join("; ", fn {field, messages} ->
       "#{field}: #{messages |> List.flatten() |> Enum.join(", ")}"
     end)
+  end
+
+  defp binding_text(placeholder, key, opts) do
+    case Enum.find(opts, fn {name, _value} -> to_string(name) == key end) do
+      {_name, value} -> to_string(value)
+      nil -> placeholder
+    end
   end
 end

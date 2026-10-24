@@ -91,6 +91,120 @@ defmodule PhoenixKitEntities.Web.FormStateRulesLiveTest do
     end
   end
 
+  describe "an entity open in two tabs" do
+    test "a newly opened tab receives pending settings and a statistics reset",
+         %{conn: conn} = ctx do
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+
+      render_hook(tab_a, "toggle_public_form", %{})
+      render_hook(tab_a, "toggle_public_form_field", %{"field" => "name"})
+      render_hook(tab_a, "reset_form_stats", %{})
+      {:ok, tab_b, _} = live(conn, url)
+
+      assert has_element?(tab_b, ~s(input[name="public_form_enabled"][checked]))
+      assert Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"]
+
+      render_submit(tab_b, "save", entity_form_params(ctx.entity, %{}))
+      saved = Entities.get_entity!(ctx.entity.uuid)
+      assert saved.settings["public_form_enabled"] == true
+      assert saved.settings["public_form_fields"] == ["name"]
+      refute saved.settings["public_form_stats"]
+    end
+
+    test "settings received from another tab survive validation and save", %{conn: conn} = ctx do
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+      {:ok, tab_b, _} = live(conn, url)
+
+      render_hook(tab_a, "toggle_public_form", %{})
+      render_hook(tab_a, "toggle_public_form_field", %{"field" => "name"})
+      render(tab_b)
+      assert Entities.get_entity!(ctx.entity.uuid).settings in [nil, %{}]
+
+      params = entity_form_params(ctx.entity, %{"display_name" => "Saved from second tab"})
+      render_change(tab_b, "validate", params)
+      render_submit(tab_b, "save", params)
+
+      stored = Entities.get_entity!(ctx.entity.uuid)
+      assert stored.display_name == "Saved from second tab"
+      assert stored.settings["public_form_enabled"] == true
+      assert stored.settings["public_form_fields"] == ["name"]
+    end
+
+    test "a statistics reset can be saved from the receiving tab and is consumed",
+         %{conn: conn} = ctx do
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+      {:ok, tab_b, _} = live(conn, url)
+
+      render_hook(tab_a, "reset_form_stats", %{})
+      render(tab_b)
+      assert Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"]
+
+      render_submit(tab_b, "save", entity_form_params(ctx.entity, %{}))
+      refute Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"]
+
+      # Saving the reset clears it in both tabs; later submissions survive
+      # the next save even in the tab that originally requested the reset.
+      render(tab_a)
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      render_submit(tab_a, "save", entity_form_params(ctx.entity, %{}))
+
+      assert Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"][
+               "total_submissions"
+             ] ==
+               1
+    end
+
+    test "discarding a statistics reset in another tab cancels it everywhere",
+         %{conn: conn} = ctx do
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+      {:ok, tab_b, _} = live(conn, url)
+
+      render_hook(tab_a, "reset_form_stats", %{})
+      render(tab_b)
+      render_hook(tab_b, "reset", %{})
+      render(tab_a)
+      render_submit(tab_a, "save", entity_form_params(ctx.entity, %{}))
+
+      assert Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"][
+               "total_submissions"
+             ] ==
+               1
+    end
+
+    test "a new tab does not revive a reset another tab already saved", %{conn: conn} = ctx do
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+      {:ok, tab_b, _} = live(conn, url)
+
+      render_hook(tab_a, "reset_form_stats", %{})
+      render(tab_b)
+      render_submit(tab_b, "save", entity_form_params(ctx.entity, %{}))
+      render(tab_a)
+
+      {:ok, tab_c, _} = live(conn, url)
+      Entities.bump_public_form_stats(ctx.entity.uuid, ["total_submissions"])
+      render_submit(tab_c, "save", entity_form_params(ctx.entity, %{}))
+
+      assert Entities.get_entity!(ctx.entity.uuid).settings["public_form_stats"][
+               "total_submissions"
+             ] ==
+               1
+    end
+  end
+
   describe "the backup switches while editing an entity" do
     # Switching a mirror on starts a supervised export. Point it at a
     # scratch directory and let it finish before the sandbox goes away.
@@ -169,6 +283,41 @@ defmodule PhoenixKitEntities.Web.FormStateRulesLiveTest do
       )
 
       await_exports()
+    end
+
+    test "a second tab's save keeps backup settings switched in the first tab",
+         %{conn: conn} = ctx do
+      conn = as(conn, ctx.acting)
+      url = "/en/admin/entities/#{ctx.entity.uuid}/edit"
+      {:ok, tab_a, _} = live(conn, url)
+      {:ok, tab_b, _} = live(conn, url)
+
+      render_change(
+        tab_b,
+        "validate",
+        entity_form_params(ctx.entity, %{"display_name" => "UNSAVED NAME"})
+      )
+
+      render(tab_a)
+      render_hook(tab_a, "toggle_backup_definitions", %{})
+      render_hook(tab_a, "toggle_backup_data", %{})
+      render(tab_b)
+
+      stored = Entities.get_entity!(ctx.entity.uuid)
+      assert stored.display_name == "Stored Name"
+      assert stored.settings == %{"mirror_definitions" => true, "mirror_data" => true}
+
+      render_submit(
+        tab_b,
+        "save",
+        entity_form_params(ctx.entity, %{"display_name" => "UNSAVED NAME"})
+      )
+
+      saved = Entities.get_entity!(ctx.entity.uuid)
+      await_exports()
+
+      assert saved.display_name == "UNSAVED NAME"
+      assert saved.settings == %{"mirror_definitions" => true, "mirror_data" => true}
     end
   end
 

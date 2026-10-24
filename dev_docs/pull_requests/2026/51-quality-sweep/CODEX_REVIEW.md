@@ -83,3 +83,77 @@ it changed.
 
 No version, changelog, dependency lock, release tag, push, or publication
 changes are part of this review.
+
+## Recheck — 2026-10-23
+
+Reviewed the current tree at `7596fc0`, including Claude's error-rendering fix
+and the earlier fixes in `314367c`. Claude's placeholder fix is sound: real
+bindings still interpolate, unknown placeholders remain literal, and no atom
+conversion is needed. The existing regression test passes.
+
+Three remaining entity-editor state bugs were reproduced and fixed. They
+concern tabs belonging to the same user, which are deliberately editable
+together under the presence lock.
+
+### BUG - MEDIUM — Remote settings disappear on the next validation or save
+
+Incoming form state updated the changeset but left `entity.settings` stale.
+Settings controls and `merge_translation_params/2` read that working copy,
+so receiving another tab's public-form configuration and then typing or
+saving silently discarded it. A newly opened editable tab also skipped the
+presence snapshot entirely because only spectators loaded it.
+
+Remote state now updates the settings working copy and sort-mode assign as
+well as the changeset. Newly opened tabs load the owner's snapshot through
+the same helper used for subsequent messages. Ordinary typed attributes stay
+in the changeset, and settings remain unsaved until an explicit save.
+
+### BUG - MEDIUM — A second tab's save undoes saved backup switches
+
+Backup switches wrote only their own keys correctly, but never broadcast
+the updated form state. Other tabs belonging to the same user ignore the
+generic `entity_updated` notification while they own the editing lock.
+Their next save therefore rewrote the old settings and disabled the backups
+again. Both switches now broadcast the merged working copy after their
+successful write, preserving unsaved text and sharing the saved keys.
+
+### BUG - MEDIUM — Statistics-reset intent does not follow shared form state
+
+`form_stats_reset?` was local to the tab that requested it. Saving the shared
+form from another tab retained the counters instead of resetting them.
+Conversely, discarding the reset from another tab left the original flag
+set, so a later save still erased the counters. A consumed reset could also
+remain pending in its originating tab after another tab saved.
+
+The reset flag now travels in both form broadcasts and presence snapshots.
+Successful saves and form resets broadcast its cleared value, and fresh
+forms and spectator promotion initialize it to false. The context's atomic
+stats preservation and explicit-reset contract are unchanged.
+
+### Regression evidence
+
+Five added LiveView tests reproduced the failures before their respective
+fixes: settings lost after validation/save; newly opened tabs missing pending
+settings/reset state; backup switches undone by another tab; resets ignored
+or retained after another tab saves; and canceled resets still erasing
+counters. A sixth test covers a newly opened third tab reading a stale
+presence snapshot after another tab completed the reset. Receiving a peer's
+state now refreshes the receiving session's snapshot too, so joining tabs
+cannot revive consumed reset intent. Spectator promotion clears its cached
+snapshot when reloading the stored row. The tests also check that unsaved settings
+never reach the row and that submissions counted after a completed reset
+survive the next save.
+
+The initial full suite passed (1524 tests, zero failures, two existing
+exclusions), confirming these were coverage gaps. Final validation is
+recorded in [FOLLOW_UP.md](FOLLOW_UP.md).
+
+### Gate maintenance — Patch the audited dependency
+
+The first `mix precommit` run stopped at `mix hex.audit` on the existing
+`plug_crypto 2.2.0` lock. The advisory was published after Claude's review:
+wrong argument types can expose the secret key base in stack traces. The
+[upstream changelog](https://github.com/elixir-plug/plug_crypto/blob/main/CHANGELOG.md)
+identifies 2.2.1 as the patch for CVE-2026-105963 / GHSA-ffw9-w85g-f2vh.
+Ran `mix deps.update plug_crypto`; it changed only that lock entry to 2.2.1.
+No direct dependency, version, or changelog change was needed.

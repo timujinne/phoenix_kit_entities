@@ -220,6 +220,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       |> assign(:live_source, live_source)
       |> assign(:delete_confirm_index, nil)
       |> assign(:has_unsaved_changes, false)
+      |> assign(:form_stats_reset?, false)
       |> assign(:mirror_path, Storage.root_path())
       |> assign(:sort_mode, Entities.get_sort_mode(entity))
       # An edit opens on the language being viewed; a new entity starts on
@@ -237,11 +238,9 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       PresenceHelpers.subscribe_to_editing(:entity, entity.uuid)
       Events.subscribe_to_entity_form(form_key)
 
-      socket = assign_editing_role(socket, entity.uuid)
-
-      if socket.assigns.readonly?,
-        do: load_spectator_state(socket, entity.uuid),
-        else: socket
+      socket
+      |> assign_editing_role(entity.uuid)
+      |> load_peer_form_state(entity.uuid)
     else
       socket
       |> assign(:lock_owner?, true)
@@ -267,26 +266,12 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     end
   end
 
-  defp load_spectator_state(socket, entity_uuid) do
-    # Owner might have unsaved changes - sync from their Presence metadata
+  defp load_peer_form_state(socket, entity_uuid) do
+    # New tabs, including the same user's editable tabs, need the owner's
+    # working copy before their first change or save.
     case PresenceHelpers.get_lock_owner(:entity, entity_uuid) do
       %{form_state: form_state} when not is_nil(form_state) ->
-        # Apply owner's form state
-        changeset_params =
-          Map.get(form_state, :changeset_params) || Map.get(form_state, "changeset_params")
-
-        fields = Map.get(form_state, :fields) || Map.get(form_state, "fields")
-
-        if changeset_params && fields do
-          changeset = Entities.change_entity(socket.assigns.entity, changeset_params)
-
-          socket
-          |> assign(:changeset, changeset)
-          |> assign(:fields, fields)
-          |> assign(:has_unsaved_changes, true)
-        else
-          socket
-        end
+        apply_remote_entity_form_change(socket, form_state)
 
       _ ->
         # No form state to sync
@@ -907,7 +892,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
       case Entities.update_mirror_settings(entity, new_settings, Actor.opts(socket)) do
         {:ok, updated_entity} ->
-          {:noreply, adopt_mirror_settings(socket, updated_entity)}
+          reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
 
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
@@ -929,7 +914,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
              Actor.opts(socket)
            ) do
         {:ok, updated_entity} ->
-          {:noreply, adopt_mirror_settings(socket, updated_entity)}
+          reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
 
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
@@ -1232,6 +1217,8 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         |> assign(:changeset, Entities.change_entity(entity))
         |> assign(:fields, entity.fields_definition || [])
         |> assign(:has_unsaved_changes, false)
+        |> assign(:form_stats_reset?, false)
+        |> cache_entity_form_state(nil)
         |> then(&{:noreply, &1})
       else
         # Just a presence update (someone joined/left as spectator)
@@ -1285,20 +1272,15 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     socket =
       if connected?(socket) && socket.assigns[:form_key] && socket.assigns.entity.uuid &&
            socket.assigns[:lock_owner?] do
-        entity_uuid = socket.assigns.entity.uuid
-        topic = PresenceHelpers.editing_topic(:entity, entity_uuid)
-
         payload =
           %{
             changeset_params: extract_entity_changeset_params(socket.assigns.changeset),
-            fields: socket.assigns.fields
+            fields: socket.assigns.fields,
+            form_stats_reset?: socket.assigns.form_stats_reset?
           }
           |> Map.merge(extra)
 
-        # Update Presence metadata with form state (for spectators to sync)
-        Presence.update(self(), topic, socket.id, fn meta ->
-          Map.put(meta, :form_state, payload)
-        end)
+        cache_entity_form_state(socket, payload)
 
         # Also broadcast for real-time sync to spectators
         Events.broadcast_entity_form_change(socket.assigns.form_key, payload,
@@ -1312,6 +1294,16 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
     # Mark that we have unsaved changes
     assign(socket, :has_unsaved_changes, true)
+  end
+
+  defp cache_entity_form_state(socket, payload) do
+    topic = PresenceHelpers.editing_topic(:entity, socket.assigns.entity.uuid)
+
+    Presence.update(self(), topic, socket.id, fn meta ->
+      Map.put(meta, :form_state, payload)
+    end)
+
+    socket
   end
 
   defp apply_remote_entity_form_change(socket, payload) do
@@ -1331,11 +1323,23 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       |> Entities.change_entity(entity_params)
       |> Map.put(:action, :validate)
 
+    # Settings controls and saves read the working copy, while ordinary
+    # inputs read the changeset. Both must carry the same remote settings.
+    settings = Ecto.Changeset.get_field(changeset, :settings) || %{}
+    entity = %{socket.assigns.entity | settings: settings}
+    reset? = Map.get(payload, :form_stats_reset?, Map.get(payload, "form_stats_reset?", false))
+
     socket
+    |> assign(:entity, entity)
     |> assign(:fields, fields)
     |> assign(:changeset, changeset)
+    |> assign(:sort_mode, Entities.get_sort_mode(entity))
+    |> assign(:form_stats_reset?, reset? == true)
     |> assign(:delete_confirm_index, nil)
     |> assign(:has_unsaved_changes, true)
+    # The FIFO owner's snapshot must stay current even when a different
+    # editable tab sent the change; new joiners read that owner's metadata.
+    |> cache_entity_form_state(payload)
 
     # Note: UI-only state (show_icon_picker, icon_search, selected_category,
     # show_field_form, editing_field_index, field_form, field_error, delete_confirm_index)
