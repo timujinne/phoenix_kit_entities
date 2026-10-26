@@ -1333,6 +1333,15 @@ defmodule PhoenixKitEntities do
   @spec migration_module() :: module()
   def migration_module, do: PhoenixKitEntities.Migrations
 
+  @doc """
+  The places in this module's tables that point at a stored file; see
+  `PhoenixKitEntities.FileReferences`.
+  """
+  # No `@impl`: the callback exists from the first core release after 2.64.1.
+  # Without it this module still compiles against an older core, where core's
+  # own list for these tables stays in force.
+  def file_references, do: PhoenixKitEntities.FileReferences.pairs()
+
   @impl PhoenixKit.Module
   @spec module_name() :: String.t()
   def module_name, do: "Entities"

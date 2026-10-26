@@ -1,3 +1,40 @@
+## 0.6.1 - 2026-10-24
+
+### Changed
+
+- The Gettext backend compiles one module per locale and domain
+  (`split_module_by: [:locale, :domain]`), so the catalogues compile in
+  parallel instead of in one long serial step that held up every app
+  depending on this package. Lookups are unchanged. (PR #53)
+- Dependencies refreshed to `phoenix_kit` 2.64.1, including `plug_crypto`
+  2.2.1 (security patch for CVE-2026-105963). The `phoenix_kit` requirement
+  is unchanged.
+
+### Fixed
+
+- Rendering a changeset error no longer raises `ArgumentError` when the
+  message carries user-typed text containing `%{word}` (a field label from an
+  imported mirror file, say). Bindings are matched by name; a placeholder with
+  no binding is left as written, so the import flash reports the invalid
+  record instead of crashing.
+- Two tabs of the same user editing one entity now share the whole working
+  copy:
+  - Public-form settings received from the other tab are no longer dropped on
+    the next validation or save, and a newly opened tab picks up the pending
+    changes instead of starting from the stored row.
+  - Saving from one tab no longer switches the backup settings toggled in
+    the other back off.
+  - A "reset statistics" request follows the form: saving from the other tab
+    resets the counters, cancelling it from the other tab no longer erases
+    them on a later save, and a reset already done is not repeated by a tab
+    opened afterwards.
+
+## Unreleased
+
+### Added
+
+- **The module now tells core's orphan-file check which of its rows point at a stored file** (`file_references/0`, in `FileReferences`): `phoenix_kit_entity_data`. The SQL moved here verbatim from core's `PhoenixKit.Modules.Storage`; a test compares it with core's own copy. Core reads the callback from the first release after 2.64.1; before that, core's own list stays in force. No migration, no change in what counts as an orphan.
+
 ## 0.6.0 - 2026-10-13
 
 ### Added

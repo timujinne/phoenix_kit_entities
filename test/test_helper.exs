@@ -311,4 +311,21 @@ if String.starts_with?(default_mirror_dir, Mix.Project.build_path() <> "/") do
   File.rm_rf!(default_mirror_dir)
 end
 
-ExUnit.start(exclude: exclude)
+# The builds-alone test needs `PhoenixKit.TestSupport.ModuleChainCheck`, which
+# ships in the first core release after 2.64.1; against an older core it is
+# excluded.
+chain_check_exclude =
+  if Code.ensure_loaded?(PhoenixKit.TestSupport.ModuleChainCheck),
+    do: [],
+    else: [:requires_module_chain_check]
+
+# The file-references test compares against core's own list, which the first
+# core release after 2.64.1 exposes as `Storage.builtin_file_references/0`;
+# against an older core it is excluded.
+file_refs_exclude =
+  if Code.ensure_loaded?(PhoenixKit.Modules.Storage) and
+       function_exported?(PhoenixKit.Modules.Storage, :builtin_file_references, 0),
+     do: [],
+     else: [:requires_core_file_references]
+
+ExUnit.start(exclude: chain_check_exclude ++ file_refs_exclude ++ exclude)
