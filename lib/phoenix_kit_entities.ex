@@ -89,6 +89,8 @@ defmodule PhoenixKitEntities do
   use PhoenixKit.Module
   use Gettext, backend: PhoenixKitEntities.Gettext
 
+  require Logger
+
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
@@ -97,6 +99,7 @@ defmodule PhoenixKitEntities do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.RolePermission
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Routes
@@ -1334,6 +1337,13 @@ defmodule PhoenixKitEntities do
   def migration_module, do: PhoenixKitEntities.Migrations
 
   @doc """
+  The manifest of this module's tables, for `mix phoenix_kit.repair` and
+  `mix phoenix_kit.doctor`; see `PhoenixKitEntities.ExpectedSchema`.
+  """
+  # No `@impl`, so this compiles against a core that lacks the callback.
+  def expected_schema, do: PhoenixKitEntities.ExpectedSchema
+
+  @doc """
   The places in this module's tables that point at a stored file; see
   `PhoenixKitEntities.FileReferences`.
   """
@@ -1361,8 +1371,126 @@ defmodule PhoenixKitEntities do
       # Renders the label translated in the admin permissions matrix, the
       # same way the sidebar tabs below translate theirs.
       gettext_backend: PhoenixKitEntities.Gettext,
-      gettext_domain: "default"
+      gettext_domain: "default",
+      sub_permissions: [
+        # The settings page switches the system and every entity's mirror,
+        # exports, and imports files that overwrite definitions and data —
+        # more than the everyday key should carry. `migrate_legacy/0` grants
+        # it once to every role that held the base key before it existed.
+        %{
+          key: "settings",
+          label: gettext_noop("Change Entities settings"),
+          description:
+            gettext_noop(
+              "Switch the entities system and mirroring, export, and import files that overwrite definitions and data"
+            )
+        }
+      ]
     }
+  end
+
+  @doc """
+  The composed key of the settings sub-permission, for `Scope.can?/2`.
+  Gates `Web.EntitiesSettings` at mount and on every event.
+  """
+  @spec settings_permission() :: String.t()
+  def settings_permission, do: module_key() <> ".settings"
+
+  @doc """
+  Whether `scope` may use the settings page and the entity form's mirror
+  and export controls (`entities.settings`).
+
+  Not `Scope.can?/2`: that also requires the module to be ENABLED, so a
+  settings page that was open when the system was switched off could not
+  switch it back on. (A fresh visit to a disabled module's page is refused
+  by core's admin gate before mount; re-enabling then goes through core's
+  Modules page.) Held means held directly (or through the `"*"` wildcard)
+  together with its base key.
+  """
+  @spec can_manage_settings?(term()) :: boolean()
+  def can_manage_settings?(%Auth.Scope{} = scope) do
+    Auth.Scope.has_module_access?(scope, module_key()) and
+      Auth.Scope.has_module_access?(scope, settings_permission())
+  end
+
+  def can_manage_settings?(_), do: false
+
+  # Set once `entities.settings` has been carried to the roles that held the
+  # base key before it existed, so it never runs again and an Owner's revoke
+  # sticks.
+  @settings_backfill_key "entities_settings_backfilled"
+
+  @impl PhoenixKit.Module
+  @doc """
+  One-time data repairs core runs at boot. Grants `entities.settings` once
+  to every role that already holds `entities`, so nobody loses the settings
+  page they could reach before the key was split out; a role created or
+  granted `entities` later gets the narrow meaning. The flag is set only
+  after every grant succeeded, so a failed pass retries next boot.
+  """
+  def migrate_legacy do
+    if Settings.get_setting(@settings_backfill_key) == "true" do
+      {:ok, %{settings_backfill: :already_backfilled}}
+    else
+      backfill_settings_permission()
+    end
+  rescue
+    e ->
+      Logger.warning(
+        "[Entities] settings permission backfill raised: exception=#{inspect(e.__struct__)}"
+      )
+
+      {:error, :backfill_failed}
+  end
+
+  defp backfill_settings_permission do
+    alias PhoenixKit.Users.Permissions
+
+    key = settings_permission()
+
+    with {:ok, role_uuids} <- roles_lacking(module_key(), key),
+         results = Enum.map(role_uuids, &Permissions.grant_permission(&1, key, nil)),
+         true <- Enum.all?(results, &match?({:ok, _}, &1)),
+         {:ok, _} <-
+           Settings.update_setting_with_module(@settings_backfill_key, "true", module_key()) do
+      {:ok, %{settings_backfill: :backfilled}}
+    else
+      {:error, :lookup_failed} = error ->
+        Logger.warning("[Entities] settings permission backfill could not read grants; retrying")
+        error
+
+      _ ->
+        Logger.warning("[Entities] settings permission backfill incomplete; retrying next boot")
+        {:error, :grant_failed}
+    end
+  end
+
+  # Roles holding `base` but not `key`, read with a query that RAISES on a
+  # database error. Core's `Permissions.get_permissions_for_role/1` rescues
+  # to `[]`, which would read as "nobody holds the base key" and set the
+  # flag for good.
+  @doc false
+  def roles_lacking(base, key) do
+    repo = PhoenixKit.RepoHelper.repo()
+
+    holders =
+      from(rp in RolePermission,
+        where: rp.module_key == ^base,
+        select: rp.role_uuid
+      )
+      |> repo.all()
+
+    have =
+      from(rp in RolePermission,
+        where: rp.module_key == ^key,
+        select: rp.role_uuid
+      )
+      |> repo.all()
+      |> MapSet.new()
+
+    {:ok, holders |> Enum.uniq() |> Enum.reject(&MapSet.member?(have, &1))}
+  rescue
+    _ -> {:error, :lookup_failed}
   end
 
   # Project-extension catalog entry for the `phoenix_kit_projects` hub —
@@ -1559,8 +1687,11 @@ defmodule PhoenixKitEntities do
         priority: 935,
         level: :admin,
         parent: :admin_settings,
-        permission: "entities",
+        permission: settings_permission(),
         match: :prefix,
+        # Naming the view lets core's admin gate resolve the page to the
+        # sub-key; the tab is also the page's route.
+        live_view: {PhoenixKitEntities.Web.EntitiesSettings, :index},
         gettext_backend: PhoenixKitEntities.Gettext,
         gettext_domain: "default"
       )

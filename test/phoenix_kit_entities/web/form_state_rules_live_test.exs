@@ -31,7 +31,9 @@ defmodule PhoenixKitEntities.Web.FormStateRulesLiveTest do
     {:ok, entity: entity, creator: creator, acting: acting}
   end
 
-  defp as(conn, user_uuid), do: put_test_scope(conn, fake_scope(user_uuid: user_uuid))
+  # The backup switches need `entities.settings`; the rest of the form does not
+  # care which of the two scopes edits it.
+  defp as(conn, user_uuid), do: put_test_scope(conn, settings_scope(user_uuid: user_uuid))
 
   defp entity_form_params(entity, overrides) do
     %{

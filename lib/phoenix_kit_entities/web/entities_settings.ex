@@ -2,6 +2,17 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
   @moduledoc """
   LiveView for managing entities system settings and configuration.
   Provides interface for enabling/disabling entities module and viewing statistics.
+
+  Gated on `entities.settings` (`PhoenixKitEntities.settings_permission/0`),
+  not the everyday `entities` key: import overwrites definitions and data,
+  and export and the mirror switches write files. A viewer without it is
+  sent to the entities list at mount, and every event re-checks the live
+  scope, because a hidden page does not stop a crafted event. The check is
+  `PhoenixKitEntities.can_manage_settings?/1` (held, not `Scope.can?/2`), so
+  the Enable switch keeps working on a page that was open when the system
+  was switched off. A fresh visit to a disabled module's page is refused by
+  core's admin gate before `mount/3`; re-enabling then goes through core's
+  Modules page.
   """
 
   use PhoenixKitWeb, :live_view
@@ -24,6 +35,14 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   @impl true
   def mount(_params, _session, socket) do
+    if can_manage_settings?(socket) do
+      mount_settings(socket)
+    else
+      {:ok, refuse(socket)}
+    end
+  end
+
+  defp mount_settings(socket) do
     # Defer DB queries (settings reads, entities list, stats) to handle_params/3
     # — mount runs twice (HTTP + WebSocket), handle_params runs once. See
     # Phoenix iron law.
@@ -79,8 +98,30 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     %{entities_enabled: Entities.enabled?()}
   end
 
+  # Every event — the system switch, mirror toggles, export and import — is
+  # re-checked against the live scope, not a mount decision.
   @impl true
-  def handle_event("enable_entities", _params, socket) do
+  def handle_event(event, params, socket) do
+    if can_manage_settings?(socket) do
+      settings_event(event, params, socket)
+    else
+      {:noreply, refuse(socket)}
+    end
+  end
+
+  # Held, not `can?/2`: the page holds the module's on/off switch, and
+  # `can?/2` refuses every sub-key while the module is off.
+  defp can_manage_settings?(socket) do
+    Entities.can_manage_settings?(socket.assigns[:phoenix_kit_current_scope])
+  end
+
+  defp refuse(socket) do
+    socket
+    |> put_flash(:error, gettext("You do not have permission to change Entities settings."))
+    |> push_navigate(to: Routes.path("/admin/entities"))
+  end
+
+  defp settings_event("enable_entities", _params, socket) do
     case Entities.enable_system(Actor.opts(socket)) do
       {:ok, _setting} ->
         settings = Map.put(socket.assigns.settings, :entities_enabled, true)
@@ -105,7 +146,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  def handle_event("disable_entities", _params, socket) do
+  defp settings_event("disable_entities", _params, socket) do
     case Entities.disable_system(Actor.opts(socket)) do
       {:ok, _setting} ->
         settings = Map.put(socket.assigns.settings, :entities_enabled, false)
@@ -132,7 +173,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   ## Per-Entity Mirror Events
 
-  def handle_event("toggle_entity_definitions", %{"uuid" => entity_uuid}, socket) do
+  defp settings_event("toggle_entity_definitions", %{"uuid" => entity_uuid}, socket) do
     with {:ok, entity} <- fetch_entity(entity_uuid),
          {:ok, updated_entity} <- toggle_definitions_setting(entity, Actor.opts(socket)) do
       maybe_export_entity(updated_entity, Entities.mirror_definitions_enabled?(updated_entity))
@@ -146,7 +187,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  def handle_event("toggle_entity_data", %{"uuid" => entity_uuid}, socket) do
+  defp settings_event("toggle_entity_data", %{"uuid" => entity_uuid}, socket) do
     with {:ok, entity} <- fetch_entity(entity_uuid),
          {:ok, updated_entity} <- toggle_data_setting(entity, Actor.opts(socket)) do
       maybe_export_entity(updated_entity, Entities.mirror_data_enabled?(updated_entity))
@@ -160,7 +201,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  def handle_event("export_entity_now", %{"uuid" => entity_uuid}, socket) do
+  defp settings_event("export_entity_now", %{"uuid" => entity_uuid}, socket) do
     case Entities.get_entity(entity_uuid) do
       nil ->
         {:noreply, put_flash(socket, :error, gettext("Entity not found"))}
@@ -172,7 +213,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
 
   ## Bulk Mirror Actions
 
-  def handle_event("enable_all_definitions", _params, socket) do
+  defp settings_event("enable_all_definitions", _params, socket) do
     {:ok, count} = Entities.enable_all_definitions_mirror(Actor.opts(socket))
 
     # Export all entities
@@ -187,7 +228,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("disable_all_definitions", _params, socket) do
+  defp settings_event("disable_all_definitions", _params, socket) do
     # Disabling definitions also disables data
     {:ok, _} = Entities.disable_all_data_mirror(Actor.opts(socket))
     {:ok, count} = Entities.disable_all_definitions_mirror(Actor.opts(socket))
@@ -200,7 +241,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("enable_all_data", _params, socket) do
+  defp settings_event("enable_all_data", _params, socket) do
     # Enabling data also requires definitions to be enabled
     {:ok, _} = Entities.enable_all_definitions_mirror(Actor.opts(socket))
     {:ok, count} = Entities.enable_all_data_mirror(Actor.opts(socket))
@@ -217,7 +258,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("disable_all_data", _params, socket) do
+  defp settings_event("disable_all_data", _params, socket) do
     {:ok, count} = Entities.disable_all_data_mirror(Actor.opts(socket))
 
     socket =
@@ -228,13 +269,13 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("export_now", _params, socket) do
+  defp settings_event("export_now", _params, socket) do
     socket = assign(socket, :exporting, true)
     send(self(), :do_full_export)
     {:noreply, socket}
   end
 
-  def handle_event("show_import_modal", _params, socket) do
+  defp settings_event("show_import_modal", _params, socket) do
     preview = Importer.preview_import()
 
     # Initialize selections based on preview - default to appropriate action
@@ -251,7 +292,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("hide_import_modal", _params, socket) do
+  defp settings_event("hide_import_modal", _params, socket) do
     socket =
       socket
       |> assign(:show_import_modal, false)
@@ -262,35 +303,35 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("set_import_tab", %{"tab" => entity_name}, socket) do
+  defp settings_event("set_import_tab", %{"tab" => entity_name}, socket) do
     {:noreply, assign(socket, :import_active_tab, entity_name)}
   end
 
-  def handle_event(
-        "set_definition_action",
-        %{"entity" => entity_name, "action" => action},
-        socket
-      ) do
+  defp settings_event(
+         "set_definition_action",
+         %{"entity" => entity_name, "action" => action},
+         socket
+       ) do
     action_atom = String.to_existing_atom(action)
     selections = put_in(socket.assigns.import_selections, [entity_name, :definition], action_atom)
     {:noreply, assign(socket, :import_selections, selections)}
   end
 
-  def handle_event(
-        "set_record_action",
-        %{"entity" => entity_name, "slug" => slug, "action" => action},
-        socket
-      ) do
+  defp settings_event(
+         "set_record_action",
+         %{"entity" => entity_name, "slug" => slug, "action" => action},
+         socket
+       ) do
     action_atom = String.to_existing_atom(action)
     selections = put_in(socket.assigns.import_selections, [entity_name, :data, slug], action_atom)
     {:noreply, assign(socket, :import_selections, selections)}
   end
 
-  def handle_event(
-        "set_all_records_action",
-        %{"entity" => entity_name, "action" => action},
-        socket
-      ) do
+  defp settings_event(
+         "set_all_records_action",
+         %{"entity" => entity_name, "action" => action},
+         socket
+       ) do
     action_atom = String.to_existing_atom(action)
 
     # Find the entity in preview to get all slugs
@@ -311,7 +352,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     end
   end
 
-  def handle_event("do_import_entity", %{"entity" => entity_name}, socket) do
+  defp settings_event("do_import_entity", %{"entity" => entity_name}, socket) do
     # Only import selections for the specified entity
     entity_selections = Map.get(socket.assigns.import_selections, entity_name, %{})
     filtered_selections = %{entity_name => entity_selections}
@@ -325,7 +366,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("do_import", _params, socket) do
+  defp settings_event("do_import", _params, socket) do
     socket =
       socket
       |> assign(:importing, true)
@@ -335,7 +376,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettings do
     {:noreply, socket}
   end
 
-  def handle_event("refresh_export_stats", _params, socket) do
+  defp settings_event("refresh_export_stats", _params, socket) do
     socket =
       socket
       |> assign(:export_stats, Storage.get_stats())

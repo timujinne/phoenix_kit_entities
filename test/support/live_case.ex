@@ -89,6 +89,32 @@ defmodule PhoenixKitEntities.LiveCase do
   end
 
   @doc """
+  A `fake_scope/1` that also holds `entities.settings`, for the settings
+  page. `Scope.can?/2` honours a sub-key only while the module is enabled,
+  so this switches the module on (without an activity row) for the test.
+  """
+  def settings_scope(opts \\ []) do
+    {:ok, _} = PhoenixKit.Settings.update_boolean_setting("entities_enabled", true)
+
+    fake_scope(
+      Keyword.put_new(opts, :permissions, ["entities", PhoenixKitEntities.settings_permission()])
+    )
+  end
+
+  @doc """
+  Swaps the scope on a mounted LiveView, as core does when a role's grants
+  change while the page is open — for asserting that an event re-checks
+  the live scope rather than a mount-time decision.
+  """
+  def swap_scope(view, scope) do
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.Component.assign(state.socket, :phoenix_kit_current_scope, scope)}
+    end)
+
+    :ok
+  end
+
+  @doc """
   Returns a real `PhoenixKit.Users.Auth.Scope` struct for testing.
 
   Most admin LiveViews check `Scope.can_access_admin_area?(scope)`

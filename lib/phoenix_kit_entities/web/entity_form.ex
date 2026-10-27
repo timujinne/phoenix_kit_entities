@@ -47,7 +47,15 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         socket |> get_connect_params() |> referer_to_return_path()
       end
 
-    {:ok, assign(socket, :return_to_path, return_to)}
+    {:ok,
+     socket
+     |> assign(:return_to_path, return_to)
+     # Decides only whether the backup controls are offered; each of their
+     # events re-checks the live scope.
+     |> assign(
+       :can_manage_settings,
+       Entities.can_manage_settings?(socket.assigns[:phoenix_kit_current_scope])
+     )}
   end
 
   @impl true
@@ -877,81 +885,121 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   # Backup Settings Events
 
   def handle_event("toggle_backup_definitions", _params, socket) do
-    if socket.assigns[:lock_owner?] do
-      entity = socket.assigns.entity
-      current_value = Entities.mirror_definitions_enabled?(entity)
-      new_value = !current_value
+    cond do
+      not can_manage_settings?(socket) ->
+        {:noreply, refuse_settings(socket)}
 
-      # When disabling definitions, also disable data sync
-      new_settings =
-        if new_value do
-          %{"mirror_definitions" => true}
-        else
-          %{"mirror_definitions" => false, "mirror_data" => false}
-        end
+      socket.assigns[:lock_owner?] ->
+        toggle_backup_definitions(socket)
 
-      case Entities.update_mirror_settings(entity, new_settings, Actor.opts(socket)) do
-        {:ok, updated_entity} ->
-          reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
-
-        {:error, _changeset} ->
-          {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
-      end
-    else
-      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
+      true ->
+        {:noreply, put_flash(socket, :error, spectating_message("toggle_backup_definitions"))}
     end
   end
 
   def handle_event("toggle_backup_data", _params, socket) do
-    if socket.assigns[:lock_owner?] do
-      entity = socket.assigns.entity
-      current_value = Entities.mirror_data_enabled?(entity)
-      new_value = !current_value
+    cond do
+      not can_manage_settings?(socket) ->
+        {:noreply, refuse_settings(socket)}
 
-      case Entities.update_mirror_settings(
-             entity,
-             %{"mirror_data" => new_value},
-             Actor.opts(socket)
-           ) do
-        {:ok, updated_entity} ->
-          reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
+      socket.assigns[:lock_owner?] ->
+        toggle_backup_data(socket)
 
-        {:error, _changeset} ->
-          {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
-      end
-    else
-      {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
+      true ->
+        {:noreply, put_flash(socket, :error, spectating_message("toggle_backup_data"))}
     end
   end
 
   def handle_event("export_entity_now", _params, socket) do
-    if socket.assigns[:lock_owner?] do
-      entity = socket.assigns.entity
+    cond do
+      not can_manage_settings?(socket) ->
+        {:noreply, refuse_settings(socket)}
 
-      message =
-        case Exporter.export_entity(entity) do
-          {:ok, _path, :with_data} ->
-            gettext("Exported %{name} (definition + records)", name: entity.display_name)
+      socket.assigns[:lock_owner?] ->
+        export_entity_now(socket)
 
-          {:ok, _path, :definition_only} ->
-            gettext("Exported %{name} (definition only)", name: entity.display_name)
-
-          {:error, _reason} ->
-            nil
-        end
-
-      socket =
-        if message do
-          put_flash(socket, :info, message)
-        else
-          put_flash(socket, :error, gettext("Export failed"))
-        end
-
-      {:noreply, socket}
-    else
-      {:noreply, put_flash(socket, :error, gettext("Cannot export - you are spectating"))}
+      true ->
+        {:noreply, put_flash(socket, :error, spectating_message("export_entity_now"))}
     end
   end
+
+  defp toggle_backup_definitions(socket) do
+    entity = socket.assigns.entity
+    current_value = Entities.mirror_definitions_enabled?(entity)
+    new_value = !current_value
+
+    # When disabling definitions, also disable data sync
+    new_settings =
+      if new_value do
+        %{"mirror_definitions" => true}
+      else
+        %{"mirror_definitions" => false, "mirror_data" => false}
+      end
+
+    case Entities.update_mirror_settings(entity, new_settings, Actor.opts(socket)) do
+      {:ok, updated_entity} ->
+        reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
+    end
+  end
+
+  defp toggle_backup_data(socket) do
+    entity = socket.assigns.entity
+    current_value = Entities.mirror_data_enabled?(entity)
+    new_value = !current_value
+
+    case Entities.update_mirror_settings(
+           entity,
+           %{"mirror_data" => new_value},
+           Actor.opts(socket)
+         ) do
+      {:ok, updated_entity} ->
+        reply_with_broadcast(adopt_mirror_settings(socket, updated_entity))
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update backup settings"))}
+    end
+  end
+
+  defp export_entity_now(socket) do
+    entity = socket.assigns.entity
+
+    message =
+      case Exporter.export_entity(entity) do
+        {:ok, _path, :with_data} ->
+          gettext("Exported %{name} (definition + records)", name: entity.display_name)
+
+        {:ok, _path, :definition_only} ->
+          gettext("Exported %{name} (definition only)", name: entity.display_name)
+
+        {:error, _reason} ->
+          nil
+      end
+
+    socket =
+      if message do
+        put_flash(socket, :info, message)
+      else
+        put_flash(socket, :error, gettext("Export failed"))
+      end
+
+    {:noreply, socket}
+  end
+
+  # The backup controls write mirror settings and export files, the same
+  # as the settings page: `entities.settings`, re-checked on every event.
+  defp can_manage_settings?(socket) do
+    Entities.can_manage_settings?(socket.assigns[:phoenix_kit_current_scope])
+  end
+
+  defp refuse_settings(socket) do
+    put_flash(socket, :error, gettext("You do not have permission to change Entities settings."))
+  end
+
+  defp spectating_message("export_entity_now"), do: gettext("Cannot export - you are spectating")
+  defp spectating_message(_event), do: gettext("Cannot edit - you are spectating")
 
   # ── Validate/Save helpers (below all handle_event clauses to avoid grouping warnings) ──
 
@@ -2957,7 +3005,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                     {gettext("Configure automatic backup to file for this entity")}
                   </p>
                 </div>
-                <%= if @entity.uuid do %>
+                <%= if @entity.uuid && @can_manage_settings do %>
                   <button
                     type="button"
                     class="btn btn-primary btn-sm"
@@ -2981,7 +3029,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                         class="toggle toggle-primary"
                         checked={PhoenixKitEntities.mirror_definitions_enabled?(@entity)}
                         phx-click="toggle_backup_definitions"
-                        disabled={@readonly?}
+                        disabled={@readonly? or not @can_manage_settings}
                       />
                       <div>
                         <span class="fieldset-legend font-semibold">
@@ -3003,7 +3051,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                         checked={PhoenixKitEntities.mirror_data_enabled?(@entity)}
                         phx-click="toggle_backup_data"
                         disabled={
-                          @readonly? or
+                          @readonly? or not @can_manage_settings or
                             not PhoenixKitEntities.mirror_definitions_enabled?(@entity)
                         }
                       />

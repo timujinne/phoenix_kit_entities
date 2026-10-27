@@ -6,7 +6,10 @@ defmodule PhoenixKitEntities.Routes do
   Called by PhoenixKit's integration via the `route_module/0` callback.
 
   Admin routes are registered via `admin_locale_routes/0` and `admin_routes/0`,
-  which are called by `compile_external_admin_routes` in integration.ex.
+  which are called by `compile_external_admin_routes` in integration.ex. The
+  settings page is not here: its settings tab names the view (`live_view:`),
+  which routes it and lets core gate it on `entities.settings` — never
+  register one path through both.
 
   Public routes are registered via `generate/1`, called by
   `compile_module_public_routes` in integration.ex.
@@ -55,13 +58,6 @@ defmodule PhoenixKitEntities.Routes do
         :edit,
         as: :entities_data_edit_localized
       )
-
-      live(
-        "/admin/settings/entities",
-        PhoenixKitEntities.Web.EntitiesSettings,
-        :index,
-        as: :entities_settings_localized
-      )
     end
   end
 
@@ -105,13 +101,6 @@ defmodule PhoenixKitEntities.Routes do
         PhoenixKitEntities.Web.DataForm,
         :edit,
         as: :entities_data_edit
-      )
-
-      live(
-        "/admin/settings/entities",
-        PhoenixKitEntities.Web.EntitiesSettings,
-        :index,
-        as: :entities_settings
       )
     end
   end

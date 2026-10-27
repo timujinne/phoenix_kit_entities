@@ -452,6 +452,7 @@ All defined in `Events`, broadcast via `PhoenixKit.PubSub.Manager`.
 | `entities_max_per_user` | integer | Entities one user may create (default 100) |
 | `entities_allow_relations` | boolean | Whether NEW relation fields may be added (default true); existing ones keep working. No settings UI |
 | `entities_file_upload` | boolean | File/image field uploads enabled (default false) |
+| `entities_settings_backfilled` | string | `"true"` once `migrate_legacy/0` has granted `entities.settings` to the roles holding `entities` |
 | `entities_mirror_path` | string | Base directory for filesystem mirroring (default `priv/entities` under the host) |
 | `sitemap_entities_pattern` | string | Global URL pattern when no per-entity one is set, e.g. `/:entity_name/:slug` |
 | `sitemap_entity_<name>_pattern` | string | Per-entity URL pattern override |
@@ -460,10 +461,28 @@ All defined in `Events`, broadcast via `PhoenixKit.PubSub.Manager`.
 
 ### Permissions
 
-One permission key, `"entities"` (no sub-permissions), declared by
-`permission_metadata/0` and carried by every tab; checked with
-`Scope.has_module_access?/2`. Its label renders translated in the permissions
-matrix via `gettext_backend: PhoenixKitEntities.Gettext`.
+`"entities"`, declared by `permission_metadata/0`, is carried by every admin
+tab and checked with `Scope.has_module_access?/2`. One sub-permission,
+`"entities.settings"` (`PhoenixKitEntities.settings_permission/0`), gates the
+settings page — system switch, mirror toggles, export, and an import that
+overwrites definitions and data. The settings tab carries it with
+`live_view: {Web.EntitiesSettings, :index}` (the tab is the page's route, so
+`Routes` must not register that path too). `Web.EntitiesSettings` checks it at
+mount and on every event, and `Web.EntityForm` gates its backup toggles and
+"Export Now" (the same mirror writes and export) on it too, hiding them and
+re-checking each event. Both use `PhoenixKitEntities.can_manage_settings?/1`
+(base and sub-key held, through `Scope.has_module_access?/2`), never
+`Scope.can?/2`, which refuses every sub-key while the module is off: on a page
+already open when the system is switched off, the Enable switch still works.
+A fresh visit to a disabled module's settings page is refused by core's admin
+gate before `mount/3`, so re-enabling a disabled module goes through core's
+Modules page. `migrate_legacy/0`
+grants it once to every role holding `entities`, flagged by
+`entities_settings_backfilled`; it reads grants with its own query that raises
+(`roles_lacking/2`), never core's `get_permissions_for_role/1`, which rescues
+to `[]` and would set the flag after a failed lookup. Labels
+render translated in the permissions matrix via
+`gettext_backend: PhoenixKitEntities.Gettext`.
 
 ## Database & migrations
 

@@ -2,10 +2,12 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
   use PhoenixKitEntities.LiveCase, async: false
 
   alias PhoenixKit.Test.Fixtures
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.FieldTypes
   alias PhoenixKitEntities.Mirror.Storage
   alias PhoenixKitEntities.Test.MirrorDir
+  alias PhoenixKitEntities.Web.EntitiesSettings
 
   setup do
     actor_uuid = Ecto.UUID.generate()
@@ -14,14 +16,14 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
 
   describe "mount" do
     test "renders settings page with system status panel", %{conn: conn} = ctx do
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/settings/entities")
 
       assert html =~ "System Status"
     end
 
     test "lives under Settings in the header trail", %{conn: conn} = ctx do
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/settings/entities")
 
       assert html =~ "<title>Entities</title>"
@@ -36,7 +38,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
       # Start enabled so the disable button renders
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
 
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       view
@@ -51,11 +53,24 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
       assert render(view) =~ "disabled successfully"
     end
 
-    test "enable_entities toggles the setting + logs module.entities.enabled",
+    # The check is "held", not `Scope.can?/2` (which refuses every sub-key
+    # while the module is off), so the switch works on an already-open page.
+    # This mount goes through Test.Hooks, not core's admin gate: in a real
+    # host a FRESH visit to a disabled module's page is refused before
+    # mount, and re-enabling goes through core's Modules page.
+    test "enable_entities on an open page re-enables a disabled system + logs it",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.disable_system(actor_uuid: ctx.actor_uuid)
 
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn =
+        put_test_scope(
+          conn,
+          fake_scope(
+            user_uuid: ctx.actor_uuid,
+            permissions: ["entities", Entities.settings_permission()]
+          )
+        )
+
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       view
@@ -68,11 +83,12 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
       )
 
       assert render(view) =~ "enabled successfully"
+      assert Entities.enabled?()
     end
 
     test "disable_entities button has phx-disable-with set", %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, _view, html} = live(conn, "/en/admin/settings/entities")
 
       # delta-pin: phx-disable-with on every async/destructive button (C5)
@@ -84,7 +100,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "ignores unrelated messages without crashing",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       send(view.pid, {:unrelated_message, :payload})
@@ -94,7 +110,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "logs at :debug level so unexpected messages stay visible in dev",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       previous = Logger.level()
@@ -133,7 +149,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "toggle_entity_definitions / toggle_entity_data round-trip",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "toggle_entity_definitions", %{"uuid" => ctx.entity.uuid})
@@ -146,7 +162,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "a mirror toggle is attributed to the admin who flipped it, not the entity's creator",
          %{conn: conn} = ctx do
       acting = Ecto.UUID.generate()
-      conn = put_test_scope(conn, fake_scope(user_uuid: acting))
+      conn = put_test_scope(conn, settings_scope(user_uuid: acting))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "toggle_entity_definitions", %{"uuid" => ctx.entity.uuid})
@@ -156,7 +172,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
 
     test "enable-all is attributed to the admin who clicked it", %{conn: conn} = ctx do
       acting = Ecto.UUID.generate()
-      conn = put_test_scope(conn, fake_scope(user_uuid: acting))
+      conn = put_test_scope(conn, settings_scope(user_uuid: acting))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "enable_all_definitions", %{})
@@ -168,7 +184,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "enable_all_definitions / disable_all_definitions doesn't crash",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "enable_all_definitions", %{})
@@ -179,7 +195,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "enable_all_data / disable_all_data doesn't crash",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "enable_all_data", %{})
@@ -190,7 +206,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "export_now / refresh_export_stats / export_entity_now don't crash",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "export_now", %{})
@@ -202,7 +218,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "import-modal flow: show / set_tab / hide",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "show_import_modal", %{})
@@ -246,7 +262,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
         Storage.delete_entity(b)
       end)
 
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       html = render_hook(view, "show_import_modal", %{})
@@ -266,7 +282,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     test "do_import event doesn't crash (no entities to import)",
          %{conn: conn} = ctx do
       {:ok, _} = Entities.enable_system(actor_uuid: ctx.actor_uuid)
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
 
       render_hook(view, "do_import", %{})
@@ -302,7 +318,7 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
     end
 
     defp import_everything(conn, actor_uuid) do
-      conn = put_test_scope(conn, fake_scope(user_uuid: actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/settings/entities")
       render_hook(view, "show_import_modal", %{})
       render_hook(view, "do_import", %{})
@@ -382,6 +398,75 @@ defmodule PhoenixKitEntities.Web.EntitiesSettingsLiveTest do
                "1 relation field(s) pointed at records that could not be found and were left without them: flash_link/a (target)"
 
       assert view |> element("#flash-info") |> render() =~ "Data: 1 created"
+    end
+  end
+
+  describe "entities.settings permission" do
+    @settings_path "/en/admin/settings/entities"
+
+    test "the base key alone is refused at mount", %{conn: conn} do
+      _ = settings_scope()
+      conn = put_test_scope(conn, fake_scope(permissions: ["entities"]))
+
+      assert {:error, {:live_redirect, %{to: to, flash: flash}}} = live(conn, @settings_path)
+      assert to == Routes.path("/admin/entities")
+      assert flash["error"] =~ "permission"
+    end
+
+    test "the settings sub-key holder mounts", %{conn: conn} do
+      conn = put_test_scope(conn, settings_scope())
+      assert {:ok, _view, html} = live(conn, @settings_path)
+      assert html =~ "System Status"
+    end
+
+    # Each write the page offers, crafted after the grant is gone: the
+    # handler must re-check the live scope, not the mount decision.
+    for {event, params} <- [
+          {"disable_entities", %{}},
+          {"enable_all_definitions", %{}},
+          {"enable_all_data", %{}},
+          {"disable_all_definitions", %{}},
+          {"export_now", %{}},
+          {"show_import_modal", %{}},
+          {"do_import", %{}},
+          {"do_import_entity", %{"entity" => "anything"}}
+        ] do
+      test "#{event} is refused once the scope lacks the sub-key", %{conn: conn} do
+        {:ok, view, _html} = conn |> put_test_scope(settings_scope()) |> live(@settings_path)
+        swap_scope(view, fake_scope(permissions: ["entities"]))
+
+        render_hook(view, unquote(event), unquote(Macro.escape(params)))
+        assert_redirect(view, Routes.path("/admin/entities"))
+        assert Entities.enabled?()
+      end
+    end
+
+    test "a per-entity mirror toggle is refused without the sub-key", %{conn: conn} do
+      actor_uuid = Ecto.UUID.generate()
+
+      {:ok, entity} =
+        Entities.create_entity(
+          %{
+            name: "perm_mirror_#{System.unique_integer([:positive])}",
+            display_name: "Perm Mirror",
+            display_name_plural: "Perm Mirrors",
+            fields_definition: [%{"type" => "text", "key" => "title", "label" => "Title"}],
+            created_by_uuid: actor_uuid
+          },
+          actor_uuid: actor_uuid
+        )
+
+      {:ok, view, _html} = conn |> put_test_scope(settings_scope()) |> live(@settings_path)
+      swap_scope(view, fake_scope(permissions: ["entities"]))
+
+      render_hook(view, "toggle_entity_definitions", %{"uuid" => entity.uuid})
+      refute Entities.get_entity!(entity.uuid).settings["mirror_definitions"] == true
+    end
+
+    test "the settings tab names the view and carries the sub-key" do
+      [tab] = Entities.settings_tabs()
+      assert tab.permission == "entities.settings"
+      assert tab.live_view == {EntitiesSettings, :index}
     end
   end
 end

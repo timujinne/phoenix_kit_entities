@@ -528,13 +528,41 @@ defmodule PhoenixKitEntities.Web.EntityFormLiveTest do
   describe "backup toggles + export" do
     test "toggle_backup_definitions / toggle_backup_data / export_entity_now",
          %{conn: conn} = ctx do
-      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
       {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
 
       render_hook(view, "toggle_backup_definitions", %{})
       render_hook(view, "toggle_backup_data", %{})
       render_hook(view, "export_entity_now", %{})
       assert render(view) =~ "Update Entity"
+    end
+
+    # The same mirror writes and export as the settings page: `entities.settings`.
+    test "without entities.settings the controls are not offered and every event is refused",
+         %{conn: conn} = ctx do
+      {:ok, _} = PhoenixKit.Settings.update_boolean_setting("entities_enabled", true)
+      conn = put_test_scope(conn, fake_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
+
+      refute html =~ ~s(phx-click="export_entity_now")
+      assert has_element?(view, "input[phx-click=toggle_backup_definitions][disabled]")
+
+      for event <- ~w(toggle_backup_definitions toggle_backup_data export_entity_now) do
+        assert render_hook(view, event, %{}) =~ "You do not have permission"
+      end
+
+      settings = Entities.get_entity!(ctx.entity.uuid).settings || %{}
+      refute settings["mirror_definitions"] == true
+      refute settings["mirror_data"] == true
+    end
+
+    test "a holder whose grant is revoked mid-session is refused", %{conn: conn} = ctx do
+      conn = put_test_scope(conn, settings_scope(user_uuid: ctx.actor_uuid))
+      {:ok, view, _html} = live(conn, "/en/admin/entities/#{ctx.entity.uuid}/edit")
+      swap_scope(view, fake_scope(user_uuid: ctx.actor_uuid))
+
+      assert render_hook(view, "toggle_backup_definitions", %{}) =~ "You do not have permission"
+      refute (Entities.get_entity!(ctx.entity.uuid).settings || %{})["mirror_definitions"] == true
     end
   end
 
