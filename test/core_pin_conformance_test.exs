@@ -21,8 +21,8 @@ defmodule PhoenixKitEntities.CorePinConformanceTest do
   `PhoenixKit.Utils.Number.parse_decimal/2`.
   """
 
-  @must_admit ["2.38.0", "2.38.1", "2.39.0", "2.99.4"]
-  @must_reject ["1.7.236", "2.0.0", "2.25.9", "2.26.1", "2.37.5", "3.0.0"]
+  @must_admit ["2.65.0", "2.65.1", "2.99.4", "3.0.0", "3.9.9"]
+  @must_reject ["1.7.236", "2.0.0", "2.25.9", "2.26.1", "2.37.5", "2.64.9", "4.0.0"]
 
   test "the :phoenix_kit requirement admits every core 2.x from the floor and nothing else" do
     requirement = core_requirement()

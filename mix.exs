@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.6.1"
+  @version "0.7.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do
@@ -132,7 +132,9 @@ defmodule PhoenixKitEntities.MixProject do
       # test/core_pin_conformance_test.exs): a three-segment `~> 2.38.x`
       # means `< 2.39.0` and makes `mix deps.get` unsolvable for every host
       # pairing this module with a newer core minor.
-      pk_dep(:phoenix_kit, ">= 2.38.0 and < 3.0.0"),
+      # Floor 2.65.0: the first core with the `file_references/0` and `expected_schema/0`
+      # callbacks this module implements (`@impl`). The ceiling is open through core 3.x.
+      pk_dep(:phoenix_kit, ">= 2.65.0 and < 4.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

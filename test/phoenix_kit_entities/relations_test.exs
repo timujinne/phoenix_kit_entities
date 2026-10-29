@@ -35,7 +35,9 @@ defmodule PhoenixKitEntities.RelationsTest do
           FieldTypes.relation_field("grades", "Grades", grade.uuid, multiple: true),
           # Targets may be named instead of uuid'd (seeds, hand-written
           # definitions).
-          FieldTypes.relation_field("thicknesses", "Thicknesses", "rel_thickness", multiple: true),
+          FieldTypes.relation_field("thicknesses", "Thicknesses", "rel_thickness",
+            multiple: true
+          ),
           FieldTypes.relation_field("main_grade", "Main grade", grade.uuid)
         ],
         actor
