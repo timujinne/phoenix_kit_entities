@@ -142,7 +142,7 @@ defmodule PhoenixKitEntities.SitemapSource do
 
   `@impl true` is safe: `sitemap_settings_schema/0` is declared as an
   `@optional_callbacks` entry on the `Source` behaviour in the pinned
-  `phoenix_kit` (~> 1.7), and the core admin still gates the call behind
+  `phoenix_kit`, and the core admin still gates the call behind
   `function_exported?/3`, so nothing invokes it on releases that predate the
   schema-rendering UI.
   """

@@ -19,8 +19,6 @@
 #   `PhoenixKit.Migration`, then this module's own V1 chain via
 #   `PhoenixKitEntities.Test.Migration` (test/support/test_migration.ex).
 
-require Logger
-
 alias PhoenixKitEntities.Test.LiveDatabaseGuard
 alias PhoenixKitEntities.Test.Repo, as: TestRepo
 alias PhoenixKitEntities.Test.SchemaOwnerGuard
@@ -39,39 +37,27 @@ db_name = db_config[:database] || "phoenix_kit_entities_test"
 # alongside (not instead of) SchemaOwnerGuard.
 LiveDatabaseGuard.check!(db_name)
 
-# The preflight ships in core, and this module's core floor (`~> 2.0`)
-# predates it — so it is used when the running core has it, and otherwise
-# this falls through to exactly the previous behaviour.
+# One classified connection attempt, with the repo's OWN credentials and
+# transport, before anything starts the pool.
+#
+# This replaces a `psql -lqt` listing. That check asked the wrong question:
+# it ran as the shell's user over a unix socket, so it reported "the
+# database is there" and said nothing about whether the CONFIGURED role
+# could reach it over TCP. When it could not, the answer arrived minutes
+# later as a pool checkout timeout that reads like a flaky test.
 db_check =
-  if Code.ensure_loaded?(PhoenixKit.TestSupport.PostgresPreflight) do
-    # One classified connection attempt, with the repo's OWN credentials and
-    # transport, before anything starts the pool.
-    #
-    # This replaces a `psql -lqt` listing. That check asked the wrong question:
-    # it ran as the shell's user over a unix socket, so it reported "the
-    # database is there" and said nothing about whether the CONFIGURED role
-    # could reach it over TCP. When it could not, the answer arrived minutes
-    # later as a pool checkout timeout that reads like a flaky test.
-    case PhoenixKit.TestSupport.PostgresPreflight.check(db_config) do
-      :ok ->
-        :exists
+  case PhoenixKit.TestSupport.PostgresPreflight.check(db_config) do
+    :ok ->
+      :exists
 
-      {:error, _reason, message} ->
-        IO.puts(:stderr, "\n" <> message)
-        :not_found
-    end
-  else
-    :try_connect
+    {:error, _reason, message} ->
+      IO.puts(:stderr, "\n" <> message)
+      :not_found
   end
 
-# What to tell a reader when the repo cannot be started. The preflight (when
-# core ships it) has already printed a classified reason; the fallback path
-# has not, so it keeps the one hint that covers the common case.
-db_setup_hint =
-  case db_check do
-    :try_connect -> "Run: createdb #{db_name}"
-    _ -> "The reason is printed above."
-  end
+# What to tell a reader when the repo cannot be started: the preflight has
+# already printed a classified reason.
+db_setup_hint = "The reason is printed above."
 
 repo_available =
   if db_check == :not_found do
@@ -194,23 +180,6 @@ if repo_available do
   {:ok, _pid} = PhoenixKitEntities.Test.Endpoint.start_link()
 end
 
-# The `gettext_backend`/`gettext_domain` API on PhoenixKit.Dashboard.Tab
-# (phoenix_kit core PR #522) is required by the i18n smoke test. This
-# module's floor already requires phoenix_kit ~> 2.0, which ships the API,
-# but the check stays in place so a future floor relaxation degrades
-# gracefully instead of raising UndefinedFunctionError.
-i18n_api_available =
-  Code.ensure_loaded?(PhoenixKit.Dashboard.Tab) and
-    function_exported?(PhoenixKit.Dashboard.Tab, :localized_label, 1)
-
-unless i18n_api_available do
-  Logger.info(
-    "[test_helper] PhoenixKit.Dashboard.Tab.localized_label/1 not available — " <>
-      "i18n tests excluded. They will run automatically once `phoenix_kit` is " <>
-      "upgraded to a release that ships the gettext_backend API."
-  )
-end
-
 # `PhoenixKit.Test.Fixtures.user_fixture/1` and friends go through
 # `PhoenixKit.Users.Auth.register_user/2`, which calls the Hammer-backed rate
 # limiter. Without this its ETS table does not exist and every fixture dies with
@@ -295,7 +264,6 @@ exclude =
   [
     if(!repo_available, do: :integration),
     if(!maintenance_db_available, do: :maintenance_db),
-    if(!i18n_api_available, do: :requires_phoenix_kit_i18n_api),
     :needs_unreleased_core
   ]
   |> Enum.filter(& &1)
@@ -311,29 +279,4 @@ if String.starts_with?(default_mirror_dir, Mix.Project.build_path() <> "/") do
   File.rm_rf!(default_mirror_dir)
 end
 
-# The builds-alone test needs `PhoenixKit.TestSupport.ModuleChainCheck`, which
-# ships in the first core release after 2.64.1; against an older core it is
-# excluded.
-chain_check_exclude =
-  if Code.ensure_loaded?(PhoenixKit.TestSupport.ModuleChainCheck),
-    do: [],
-    else: [:requires_module_chain_check]
-
-# The file-references test compares against core's own list, which the first
-# core release after 2.64.1 exposes as `Storage.builtin_file_references/0`;
-# against an older core it is excluded.
-file_refs_exclude =
-  if Code.ensure_loaded?(PhoenixKit.Modules.Storage) and
-       function_exported?(PhoenixKit.Modules.Storage, :builtin_file_references, 0),
-     do: [],
-     else: [:requires_core_file_references]
-
-ExUnit.start(exclude: chain_check_exclude ++ file_refs_exclude ++ exclude)
-
-# The manifest test builds the module's tables with `ModuleChainCheck.build_alone/4`
-# and hands the manifest to repair (`PhoenixKit.Module.expected_schema/0`); both
-# arrive in the first core release after 2.64.1.
-unless Code.ensure_loaded?(PhoenixKit.TestSupport.ModuleChainCheck) and
-         function_exported?(PhoenixKit.TestSupport.ModuleChainCheck, :build_alone, 4) do
-  ExUnit.configure(exclude: [:requires_core_expected_schema | ExUnit.configuration()[:exclude]])
-end
+ExUnit.start(exclude: exclude)

@@ -10,9 +10,8 @@ entity are stored as *entity data* rows sharing one JSONB shape. It implements
 the `PhoenixKit.Module` behaviour, so a host app gets the admin UI, settings,
 permissions, migrations and routes by adding the dependency — no wiring.
 
-- **Depends on:** `phoenix_kit` `>= 2.38.0 and < 3.0.0` (Hex; 2.38.0 is the
-  first core with `TreePicker`, `Utils.Tree`/`TreeQuery`, `PhoenixKitWeb.Actor`,
-  `Storage.ResourceFolders` and `mount_multilang(open_on:)`), `phoenix_live_view` `~> 1.0`,
+- **Depends on:** `phoenix_kit` `>= 3.5.0 and < 4.0.0` (Hex; floor 3.5.0, the
+  ecosystem-wide minimum, ceiling open through core 3.x), `phoenix_live_view` `~> 1.0`,
   `gettext` `~> 1.0`. `lazy_html` is test-only (`Phoenix.LiveViewTest`'s HTML
   parser). No sibling `phoenix_kit_*` deps.
 - **Consumed by:** `phoenix_kit_catalogue` (attribute sets are MANAGED
@@ -353,10 +352,10 @@ Repo-local aliases:
   the OLD translation with no runtime error. The catalogues here are edited by
   hand for that reason; `gettext_catalogue_test.exs` fails the build on any
   fuzzy entry.
-- Narrowing the core pin to a three-segment `~> 2.38.x` breaks CONSUMERS only
-  (`~> 2.38.x` excludes every 2.39+ core, so a host wanting both this module
+- Narrowing the core pin to a three-segment `~> 3.5.x` breaks CONSUMERS only
+  (`~> 3.5.x` excludes every 3.6+ core, so a host wanting both this module
   and a newer core gets an unsolvable dep set). Raising the floor of the
-  compound `>= 2.38.0 and < 3.0.0` pin is fine, and required whenever code
+  compound `>= 3.5.0 and < 4.0.0` pin is fine, and required whenever code
   starts calling a newer core API.
   `core_pin_conformance_test.exs` guards it; nothing else in this repo would
   notice.
@@ -527,9 +526,7 @@ Test DB `phoenix_kit_entities_test`; `createdb` it once. Unit tests always run;
 DB-backed tests are tagged `:integration` (auto-applied by `DataCase` and
 `LiveCase`) and auto-exclude when the database is unreachable —
 `test_helper.exs` runs one bounded, classified connection attempt through
-core's `PhoenixKit.TestSupport.PostgresPreflight` when the running core ships
-it (older cores predate it), and otherwise falls back to starting the
-repo and catching the failure. A second probe against the `postgres`
+core's `PhoenixKit.TestSupport.PostgresPreflight`. A second probe against the `postgres`
 maintenance database gates the `:maintenance_db` tag: the `SchemaOwnerGuard`
 tests create and drop scratch databases, so a role that can reach the test
 database but not the maintenance one skips them with the reason printed.
@@ -587,9 +584,8 @@ Support modules under `test/support/`:
   it. A mirror test that points the setting at `System.tmp_dir!/0` reads and
   writes the shared default directory instead.
 
-Excluded tags: `:integration` without a DB, `:requires_phoenix_kit_i18n_api`
-when core lacks `PhoenixKit.Dashboard.Tab.localized_label/1`, and
-`:needs_unreleased_core` always (see TODOs).
+Excluded tags: `:integration` without a DB, and `:needs_unreleased_core`
+always (see TODOs).
 
 ```bash
 mix test test/phoenix_kit_entities_test.exs   # behaviour callbacks, incl. version/0 vs mix.exs

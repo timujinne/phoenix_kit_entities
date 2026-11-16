@@ -116,25 +116,9 @@ defmodule PhoenixKitEntities.MixProject do
   defp deps do
     [
       # PhoenixKit provides the Module behaviour and Settings API.
-      # 1.7.214+ required: Scope.can_access_admin_area?/1 (the rename of the
-      # now-`@deprecated` Scope.admin?/1) — an older core has no such function,
-      # so this is an UndefinedFunctionError at runtime, not a warning.
-      #
-      # Floor 2.38.0: the parent picker is core's `TreePicker` with
-      # `Utils.Tree` and `Utils.TreeQuery`, the actor and activity log come
-      # from `PhoenixKitWeb.Actor` and `Activity.log/3`, the file scope
-      # folder from `Storage.ResourceFolders`, and the forms use
-      # `mount_multilang(open_on:)` — all first shipped there, none
-      # feature-detected, so an older core fails to COMPILE this package
-      # (2.26's `<.decimal_input>` is subsumed).
-      #
-      # Patch-precise floor in the compound form (see
-      # test/core_pin_conformance_test.exs): a three-segment `~> 2.38.x`
-      # means `< 2.39.0` and makes `mix deps.get` unsolvable for every host
-      # pairing this module with a newer core minor.
-      # Floor 2.65.0: the first core with the `file_references/0` and `expected_schema/0`
-      # callbacks this module implements (`@impl`). The ceiling is open through core 3.x.
-      pk_dep(:phoenix_kit, ">= 2.65.0 and < 4.0.0"),
+      # Floor 3.5.0 (the ecosystem-wide minimum), ceiling open through every
+      # core 3.x (see test/core_pin_conformance_test.exs).
+      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

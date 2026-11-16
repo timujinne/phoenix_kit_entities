@@ -136,24 +136,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     Routes.local_path?(path) and admin_area_path?(path)
   end
 
-  # `Routes.admin_area_path?/1` is public from core 2.14.1. The `:phoenix_kit`
-  # requirement stays a two-segment `~> 2.0` on purpose — narrowing it to a
-  # single core minor breaks `mix deps.get` for every host running this module
-  # alongside a different one, with no degraded mode (see
-  # `test/core_pin_conformance_test.exs`). So the newer API is used when it is
-  # there and the previous check stands in when it is not, rather than being
-  # pinned into existence.
-  #
-  # `Code.ensure_loaded?/1` alongside `function_exported?/3` because the latter
-  # answers false for a module that simply has not been loaded yet, which under
-  # a release is the normal state.
-  defp admin_area_path?(path) do
-    if Code.ensure_loaded?(Routes) and function_exported?(Routes, :admin_area_path?, 1) do
-      Routes.admin_area_path?(path)
-    else
-      String.contains?(path, "/admin/")
-    end
-  end
+  defp admin_area_path?(path), do: Routes.admin_area_path?(path)
 
   # If the referrer is the same page we're rendering (e.g. user reloaded
   # the edit page), drop it so "and Return" doesn't no-op back to here.
