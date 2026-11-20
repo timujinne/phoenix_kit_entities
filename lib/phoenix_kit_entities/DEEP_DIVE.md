@@ -1024,6 +1024,19 @@ Events.broadcast_entity_deleted(entity.uuid)
 Events.broadcast_data_created(entity_uuid, data_uuid)
 Events.broadcast_data_updated(entity_uuid, data_uuid)
 
+# A write inside your own transaction: defer the broadcast and the mirror
+# export, then run them once the transaction has committed (a failed write
+# rolls your whole transaction back; see EntityData.notify_committed/2)
+{:ok, record} =
+  Repo.transaction(fn ->
+    case EntityData.create(attrs, defer_notify: true) do
+      {:ok, record} -> record
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end)
+
+EntityData.notify_committed(record, :created)
+
 # Handle incoming updates in LiveView
 def handle_info({:entity_updated, entity_uuid}, socket)
 def handle_info({:data_updated, entity_uuid, data_uuid}, socket)

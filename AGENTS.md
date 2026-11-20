@@ -150,7 +150,7 @@ Repo-local aliases:
   which stamps `module: "entities"` and hands the entry to core's
   `PhoenixKit.Activity`, which never raises, so a logging failure never crashes
   the mutation. Notification-side wiring lives in `notify_entity_event/2` and
-  `notify_data_event/2`, piped after every CRUD repo call so logging only fires
+  `notify_data_event/3`, piped after every CRUD repo call so logging only fires
   on `:ok` and an `:error` tuple flows through unchanged. Actions are
   `entity.{verb}` / `entity_data.{verb}` where verb is one of `created`,
   `updated`, `deleted`, `trashed`, `restored`, `reordered`,
@@ -320,8 +320,9 @@ Repo-local aliases:
   transaction aborts the whole run (Ecto nested-transaction semantics). The
   test sandbox turns nested transactions into savepoints and hides this, so
   a test passing is no proof. The internal `EntityData` options
-  (`relation_check: :defer`, `defer_notify: true`, `uuid:`) exist for the
-  importer only.
+  (`relation_check: :defer`, `uuid:`) exist for the importer only;
+  `defer_notify: true` is public (a caller writing inside its own
+  transaction runs `EntityData.notify_committed/2` after the commit).
 - **Rich-text field values are sanitized on the write path** through
   `PhoenixKit.Utils.HtmlSanitizer.sanitize_rich_text_fields/2` (per language
   too) — never store raw user HTML in the `data` JSONB.
