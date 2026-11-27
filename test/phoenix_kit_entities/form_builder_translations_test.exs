@@ -230,4 +230,85 @@ defmodule PhoenixKitEntities.FormBuilderTranslationsTest do
       assert FormBuilder.merge_other_params([@field], params) == params
     end
   end
+
+  describe "placeholder and help text translations" do
+    @text_field %{
+      "type" => "text",
+      "key" => "name",
+      "label" => "Name",
+      "placeholder" => "Your name",
+      "description" => "We reply soon",
+      "translations" => %{
+        "de-DE" => %{"placeholder" => "Ihr Name", "description" => "Wir antworten bald"},
+        "fr-FR" => %{"placeholder" => "", "description" => "  "}
+      }
+    }
+
+    test "translated_placeholder/2 and translated_description/2 resolve the language's text" do
+      assert FormBuilder.translated_placeholder(@text_field, "de-DE") == "Ihr Name"
+      assert FormBuilder.translated_description(@text_field, "de-DE") == "Wir antworten bald"
+      # base code against a dialect key
+      assert FormBuilder.translated_placeholder(@text_field, "de") == "Ihr Name"
+    end
+
+    test "they fall back to the field's own text" do
+      for lang <- [nil, "es", "fr-FR"] do
+        assert FormBuilder.translated_placeholder(@text_field, lang) == "Your name"
+      end
+
+      assert FormBuilder.translated_description(@text_field, nil) == "We reply soon"
+      assert FormBuilder.translated_description(@text_field, "es") == "We reply soon"
+    end
+
+    test "a field with neither text gives nil, as before" do
+      plain = %{"type" => "text", "key" => "x", "label" => "X"}
+      assert FormBuilder.translated_placeholder(plain, "de-DE") == nil
+      assert FormBuilder.translated_description(plain, "de-DE") == nil
+    end
+
+    test "a translated help text shows even when the field has none of its own" do
+      field = %{
+        "type" => "text",
+        "key" => "x",
+        "label" => "X",
+        "translations" => %{"de-DE" => %{"description" => "Nur auf Deutsch"}}
+      }
+
+      assert FormBuilder.build_field(field, changeset(), lang_code: "de-DE")
+             |> rendered_to_string() =~ "Nur auf Deutsch"
+
+      refute FormBuilder.build_field(field, changeset()) |> rendered_to_string() =~
+               "fieldset-label"
+    end
+
+    test "build_field/3 renders them for the language, and the canonical ones without" do
+      de =
+        FormBuilder.build_field(@text_field, changeset(), lang_code: "de-DE")
+        |> rendered_to_string()
+
+      assert de =~ ~s(placeholder="Ihr Name")
+      assert de =~ "Wir antworten bald"
+      refute de =~ "We reply soon"
+
+      plain = FormBuilder.build_field(@text_field, changeset()) |> rendered_to_string()
+      assert plain =~ ~s(placeholder="Your name")
+      assert plain =~ "We reply soon"
+    end
+
+    test "a select's empty option uses the translated placeholder" do
+      field = %{
+        "type" => "select",
+        "key" => "topic",
+        "label" => "Topic",
+        "options" => ["A"],
+        "placeholder" => "Pick one",
+        "translations" => %{"de-DE" => %{"placeholder" => "Bitte wählen"}}
+      }
+
+      assert FormBuilder.build_field(field, changeset(), lang_code: "de-DE")
+             |> rendered_to_string() =~ "Bitte wählen"
+
+      assert FormBuilder.build_field(field, changeset()) |> rendered_to_string() =~ "Pick one"
+    end
+  end
 end

@@ -11,6 +11,16 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100 != 11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10||n%100>=20) ? 1 : 2);\n"
 
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Leave this field empty"
+msgstr "Оставьте это поле пустым"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "These texts are for the selected language. Leave one empty to use the primary language's text."
+msgstr "Эти тексты относятся к выбранному языку. Оставьте поле пустым, чтобы использовать текст основного языка."
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2209
 #, elixir-autogen, elixir-format
 msgid "%{count} Field Definition"
@@ -3022,3 +3032,103 @@ msgstr "Включение и выключение системы сущност
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to change Entities settings."
 msgstr "У вас нет прав на изменение настроек сущностей."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification token not accepted."
+msgstr "[Debug] Отправка отклонена: токен проверки Turnstile не принят."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification service unavailable."
+msgstr "[Debug] Отправка отклонена: сервис проверки Turnstile недоступен."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Please complete the verification and try again."
+msgstr "Пожалуйста, пройдите проверку и попробуйте снова."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The verification service is not available right now. Please try again in a few minutes."
+msgstr "Сервис проверки сейчас недоступен. Пожалуйста, попробуйте снова через несколько минут."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Cloudflare Turnstile"
+msgstr "Cloudflare Turnstile"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Ask visitors to pass a Cloudflare Turnstile check. Needs a Turnstile connection configured in the core Integrations settings, and the site's JavaScript bundle on the page that shows the form."
+msgstr "Просить посетителей пройти проверку Cloudflare Turnstile. Нужно подключение Turnstile, настроенное в разделе интеграций ядра, и JavaScript-пакет сайта на странице, где показана форма."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Open integrations"
+msgstr "Открыть интеграции"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile connection:"
+msgstr "Подключение Turnstile:"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Select a connection"
+msgstr "Выберите подключение"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "No verified Cloudflare Turnstile connection exists. Add one in the core Integrations settings; until then submissions are not checked."
+msgstr "Проверенного подключения Cloudflare Turnstile нет. Добавьте его в разделе интеграций ядра; до тех пор отправки не проверяются."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Select a Turnstile connection below; until then submissions are not checked."
+msgstr "Выберите подключение Turnstile ниже; до тех пор отправки не проверяются."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The selected Turnstile connection is gone or no longer verified. Select another; until then submissions are not checked."
+msgstr "Выбранное подключение Turnstile удалено или больше не проверено. Выберите другое; до тех пор отправки не проверяются."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile: %{count}"
+msgstr "Turnstile: %{count}"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile unavailable: %{count}"
+msgstr "Turnstile недоступен: %{count}"
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification token missing."
+msgstr "[Debug] Отправка отклонена: токен проверки Turnstile отсутствует."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Please wait for the verification to finish, then try again. If you do not see it, reload the page."
+msgstr "Пожалуйста, дождитесь завершения проверки и попробуйте снова. Если вы её не видите, перезагрузите страницу."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile (no token): %{count}"
+msgstr "Turnstile (нет токена): %{count}"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile not checked: %{count}"
+msgstr "Без проверки Turnstile: %{count}"
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The verification could not load, so this form cannot be sent. Your browser or network is blocking challenges.cloudflare.com: allow it (a content blocker is the usual cause), then reload the page."
+msgstr "Не удалось загрузить проверку, поэтому форму нельзя отправить. Ваш браузер или сеть блокирует challenges.cloudflare.com: разрешите его (обычно причина — блокировщик контента) и перезагрузите страницу."
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The verification could not start. Please reload the page."
+msgstr "Не удалось запустить проверку. Пожалуйста, перезагрузите страницу."

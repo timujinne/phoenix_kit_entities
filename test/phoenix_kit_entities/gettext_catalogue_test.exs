@@ -13,7 +13,8 @@ defmodule PhoenixKitEntities.GettextCatalogueTest do
 
   This test is the guard the compiler doesn't provide — it fails loudly the
   moment any shipped catalogue (including `en/`, which this package ships
-  alongside `et/` and `ru/` even though `msgstr == msgid` there) picks up a
+  alongside `et/`, `ru/`, `de/` and `fr/` even though `msgstr == msgid`
+  there) picks up a
   `fuzzy` entry, so the stale translation gets caught before release
   instead of silently shipping.
 
@@ -28,7 +29,7 @@ defmodule PhoenixKitEntities.GettextCatalogueTest do
 
   use ExUnit.Case, async: true
 
-  @locales ["en", "et", "ru"]
+  @locales ["en", "et", "ru", "de", "fr"]
 
   for locale <- @locales do
     test "priv/gettext/#{locale}/LC_MESSAGES/default.po has no fuzzy entries" do

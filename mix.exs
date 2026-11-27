@@ -1,7 +1,7 @@
 defmodule PhoenixKitEntities.MixProject do
   use Mix.Project
 
-  @version "0.7.0"
+  @version "0.8.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_entities"
 
   def project do
@@ -116,9 +116,12 @@ defmodule PhoenixKitEntities.MixProject do
   defp deps do
     [
       # PhoenixKit provides the Module behaviour and Settings API.
-      # Floor 3.5.0 (the ecosystem-wide minimum), ceiling open through every
-      # core 3.x (see test/core_pin_conformance_test.exs).
-      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
+      # Floor 3.7.0: the public form's Cloudflare Turnstile option calls
+      # PhoenixKit.Integrations.Turnstile and
+      # Integrations.connected_choices(:turnstile, :system), which first ship
+      # in core 3.7.0. Ceiling open through every core 3.x (see
+      # test/core_pin_conformance_test.exs).
+      pk_dep(:phoenix_kit, ">= 3.7.0 and < 4.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

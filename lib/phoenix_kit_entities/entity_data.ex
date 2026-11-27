@@ -1757,9 +1757,10 @@ defmodule PhoenixKitEntities.EntityData do
   mirror export of the record — what `create/2` and `update/3` do themselves
   without the option.
 
-  `event` is `:created` or `:updated`, after the write it follows; no other
-  event is accepted. `nil` is accepted and does nothing, for a caller whose
-  write was optional. Returns `:ok`.
+  `event` is `:created` or `:updated`, after the write it follows; any other
+  event raises `ArgumentError` immediately rather than reaching a confusing
+  `FunctionClauseError`. `nil` is accepted and does nothing, for a caller
+  whose write was optional. Returns `:ok`.
 
   ## Examples
 
@@ -1792,6 +1793,12 @@ defmodule PhoenixKitEntities.EntityData do
   def notify_committed(%__MODULE__{} = entity_data, :updated) do
     Events.broadcast_data_updated(entity_data.entity_uuid, entity_data.uuid)
     maybe_mirror_data(entity_data)
+  end
+
+  def notify_committed(%__MODULE__{}, event) do
+    raise ArgumentError,
+          "notify_committed/2 accepts only :created or :updated as the event, " <>
+            "got: #{inspect(event)}"
   end
 
   # Auto-fill created_by_uuid with the first admin when the caller did not name
@@ -3231,9 +3238,10 @@ defmodule PhoenixKitEntities.EntityData do
   end
 
   @doc """
-  Alias for update/2 for consistency with LiveView naming.
+  Alias for update/3 for consistency with LiveView naming.
   """
-  @spec update_data(t(), map(), keyword()) :: {:ok, t()} | {:error, Ecto.Changeset.t()}
+  @spec update_data(t(), map(), keyword()) ::
+          {:ok, t()} | {:error, Ecto.Changeset.t() | :status_mismatch | :locked_key}
   def update_data(entity_data, attrs, opts \\ []),
     do: __MODULE__.update(entity_data, attrs, opts)
 

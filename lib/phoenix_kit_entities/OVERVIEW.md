@@ -524,7 +524,7 @@ Records that are never edited continue to work — read paths use the embedded p
 ### Limitations
 
 - **Search** queries primary language data only; secondary translations are not searched.
-- **Public form builder** creates flat (non-multilang) data. Use the admin UI or API to add translations afterward.
+- **Public form builder** stores submissions flat (non-multilang): the form is *shown and answered* in the visitor's language (see "Languages of the public form"), but what a visitor types is saved as one flat value. Use the admin UI or API to add translations afterward.
 - **Clearing a secondary field** makes it inherit the primary value (by design — override-only storage).
 - See `DEEP_DIVE.md § Known Limitations` for the full table.
 
@@ -547,7 +547,8 @@ The Entities system includes a public form builder for creating embeddable forms
 
 - **Embeddable Component**: Use `<EntityForm entity_slug="contact" />` in publishing pages
 - **Field Selection**: Choose which entity fields appear on the public form
-- **Security Options**: Honeypot, time-based validation (3s minimum), rate limiting (5/min)
+- **Languages**: Renders in the page's language, with per-language title, description, submit text, success message and field texts
+- **Security Options**: Honeypot, time-based validation (3s minimum), rate limiting (5/min), Cloudflare Turnstile
 - **Configurable Actions**: reject_silent, reject_error, save_suspicious, save_log
 - **Statistics**: Track submissions, rejections, and security triggers
 - **Debug Mode**: Detailed error messages for troubleshooting
@@ -567,8 +568,108 @@ The Entities system includes a public form builder for creating embeddable forms
 | `public_form_honeypot` | Enable honeypot protection |
 | `public_form_time_check` | Enable time-based validation |
 | `public_form_rate_limit` | Enable rate limiting |
+| `public_form_turnstile` | Enable Cloudflare Turnstile (needs a connection, see below) |
+| `public_form_turnstile_connection` | UUID of the verified Turnstile connection to use |
+| `public_form_turnstile_action` | Action when the check fails (default `reject_error`) |
 | `public_form_debug_mode` | Show detailed error messages |
 | `public_form_collect_metadata` | Collect submission metadata |
+
+### Languages of the public form
+
+On a multilingual site (Languages module with two or more enabled languages)
+the form renders, and answers after the submit, in the page's language. The
+language is the page's own (`PhoenixKit.Utils.Multilang.current_locale/0`) or
+the `locale` attribute (`<EntityForm entity_slug="contact" locale="de" />`);
+it must be an enabled language, anything else is ignored.
+
+Where each text comes from, in the language of the page (the primary language
+always reads the flat value):
+
+| Text | Per-language source | Falls back to |
+|------|---------------------|---------------|
+| Title, description, submit text, success message | `settings["translations"][lang]["public_form_title" / "public_form_description" / "public_form_submit_text" / "public_form_success_message"]`, edited on the language tabs of the builder's public-form section | the flat `public_form_*` setting |
+| Field label, placeholder, help text, option texts | the field's own `"translations"[lang]` (`"label"`, `"placeholder"`, `"description"`, `"options"`) | the field's own text |
+| The module's own strings (default submit text, flash messages, "unavailable" notice) | the `phoenix_kit_entities` Gettext catalogues (`en`, `et`, `ru`; `de` and `fr` for the visitor-facing strings) | English |
+
+The form carries the language it was shown in as a hidden `_locale` field; the
+controller accepts it only if it names an enabled language (the posted value is
+never trusted further than that choice) and answers the submit - the success
+message and the error flashes - in it, falling back to the request's own
+language. Entities without translations render exactly as before. Field
+translations are display-only: the stored value of a select or radio is
+always the canonical option string.
+
+Not covered: the field editor of the builder has no UI for the fields'
+`"translations"` yet (set them in the field definitions, or by mirror import),
+and a validation error shown to a visitor is generic and not field-specific.
+### Cloudflare Turnstile
+
+An optional captcha for the public form, built on core's website integrations
+(`PhoenixKit.Integrations.Turnstile`, core 3.7.0+). It is independent of the
+Authorization page's switch, which only protects core's own auth forms.
+
+1. Add a Cloudflare Turnstile connection in the core Integrations settings
+   (site key and secret key) and test it.
+2. In the entity builder, switch on **Cloudflare Turnstile** under Security,
+   pick the connection and the action for a failed check (same four actions
+   as the other checks).
+
+With the option on and a usable connection, the form carries core's Turnstile
+widget and the controller verifies the token server-side with the client
+address it already derives. Behaviour:
+
+| Situation | Result |
+|-----------|--------|
+| Option off | Unchanged: no widget, no token is looked at |
+| No token | The configured action applies, with a message telling the visitor to wait for the verification (or reload); stats count `turnstile_missing_triggers`. A steady count here means the widget is not starting (see below). A missing token is never silent: with `reject_silent` it is refused with that message like the no-verdict case, because it is overwhelmingly a real visitor whose widget did not start; `reject_silent` applies only to a token Cloudflare actually refused |
+| A token Cloudflare refuses | The configured action applies; stats count `turnstile_triggers` |
+| Cloudflare cannot be reached (no verdict) | Fails closed with a "try again in a few minutes" message and applies the configured action, except `reject_silent`, which becomes `reject_error` so a real visitor is not told a lost message was sent; stats count `turnstile_unavailable_triggers` |
+| Option on, but no connection is selected, or the selected one was removed or no longer verifies | The widget is not drawn and submissions are **not checked**. This matches core's auth forms: refusing would lock the form for everyone with nothing on the page to fix. Unlike core's single switch, there is one such state per form, so it is made visible: an error is logged naming the entity, stats count `turnstile_unchecked_triggers` (shown in the builder), the stored submission carries a `turnstile_unchecked` entry (action `none`: nobody chose it) in `security_warnings`; a submission another check rejected never carries it, since Turnstile is skipped then, and the builder warns while the option is on |
+
+The switch is `true` (or the string `"true"`); anything else is off. An action
+nobody understands refuses with an error.
+
+Order: Turnstile is the last check, and it is skipped when another check
+already rejects the submission, so a request that is dropped anyway costs no
+call to Cloudflare. A request with a garbage token that nothing else rejects
+does cost one call to Cloudflare (blank, oversize and non-string tokens do
+not); with rate limiting off there is nothing else to bound them, so keep it
+on for a public form.
+
+#### Where the widget works
+
+The widget is core's (`phx-hook="Turnstile"`). Inside a LiveView, core's hook
+starts it. On a controller-rendered page, including a form embedded in a
+Publishing post, nothing would start it, so this module's own JS bundle
+(`phoenix_kit_entities.js`, folded into the host's JavaScript by core like
+every module bundle) starts it the way core's hook does, except that it does
+not wait for a closed modal to open. It does nothing for a widget that core's
+hook owns.
+
+Publishing runs every post through an allow-list HTML sanitizer that keeps
+`class`, `id`, `style`, `aria-*` and `input` `type`/`name`/`value` and drops
+`data-*`, `phx-*`, `hidden` and `<noscript>`. The form therefore carries the
+site key in a hidden `_turnstile_sitekey` field and the bundle finds the
+widget box, the live region and its texts by class; nothing it needs is an
+attribute that sanitizer removes (`public_form_turnstile_sanitized_test.exs`
+runs the component's output through a copy of Publishing 0.20.0's allow-list).
+If Publishing changes that list, re-check the selectors.
+
+Either way the host's JS bundle must be on the page; without it no token is
+sent and every submission is refused with the "wait for the verification"
+message (and counted as above). There is no `<noscript>` note: the sanitizer
+would turn it into visible markup, and a visitor without JavaScript gets the
+same message from the server.
+
+The same bundle stops a submit that has no token yet from leaving the page, so
+a visitor who is too quick keeps what they typed and sees the same message in
+a live region. Tokens are single-use; a refused submit redirects back, which
+renders a fresh widget.
+
+A host with a Content-Security-Policy must allow `https://challenges.cloudflare.com`
+in `script-src` and `frame-src` (Turnstile loads its script from there and
+renders in an iframe). When the script is blocked the widget box shows core's
+"cannot be sent" notice.
 
 ### Embedding in pages
 

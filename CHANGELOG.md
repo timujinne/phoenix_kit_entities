@@ -1,3 +1,42 @@
+## 0.8.0 - 2026-11-23
+
+### Added
+
+- **`defer_notify: true` is now a public option** on `EntityData.create/2`,
+  `update/3` and `update_data/3`, with **`EntityData.notify_committed/2`** to
+  announce the write once the caller's own transaction has committed: a
+  caller writing inside its own transaction skips the PubSub broadcast and the
+  mirror export at write time (a listener reading before the commit would not
+  find the record, and a rolled-back record would still be announced) and runs
+  `notify_committed(record, :created | :updated)` after the commit. The
+  activity entry is still written at write time, on the caller's connection,
+  so it commits or rolls back with the caller's transaction. The `create/2`
+  and `update/3` docs spell out that a failed nested write — `{:error,
+  changeset}` or, with `:require_status`, `{:error, :status_mismatch}` — marks
+  the caller's whole transaction for rollback. (PR #56)
+
+### Changed
+
+- **Core pin raised to `>= 3.5.0 and < 4.0.0`** (floor 3.5.0, the
+  ecosystem-wide minimum core; ceiling open through core 3.x). The
+  `Code.ensure_loaded?`/`function_exported?` feature detection and fallbacks
+  that only existed for older cores are removed — every API they guarded ships
+  in core 3.5.0.
+- Dependencies refreshed: `phoenix_kit` 3.7.0, `phoenix` 1.8.17,
+  `phoenix_live_view` 1.2.15, `ecto` 3.14.3, `hammer` 7.6.0, `plug` 1.20.4,
+  `postgrex` 0.23.0.
+
+### Fixed
+
+- `mix deps.unlock --check-unused` (part of `mix precommit`) no longer fails:
+  the stale `ex_aws_ec2` lock left behind when `phoenix_kit` 3.7.0 dropped the
+  dependency is removed.
+- `EntityData.notify_committed/2` raises a descriptive `ArgumentError` for
+  any event other than `:created`/`:updated` instead of a bare
+  `FunctionClauseError`, and `update_data/3`'s spec now includes
+  `:status_mismatch` and `:locked_key`, matching the `update/3` it delegates
+  to.
+
 ## 0.6.1 - 2026-10-24
 
 ### Changed

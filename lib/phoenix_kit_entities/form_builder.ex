@@ -77,6 +77,11 @@ defmodule PhoenixKitEntities.FormBuilder do
   fields are translated the same way (their `"translations"` map only
   ever has a `"label"` entry, since headings have no options).
 
+  A field's `"placeholder"` and help text (`"description"`) are translated the
+  same way, under the `"placeholder"` and `"description"` keys of its
+  `"translations"` entry — see `translated_placeholder/2` and
+  `translated_description/2`.
+
   Resolution falls back to the original text whenever a lookup can't be
   satisfied: `lang_code` is `nil`, the field has no `"translations"` key
   at all, the language isn't present, or (for options) that specific
@@ -94,7 +99,9 @@ defmodule PhoenixKitEntities.FormBuilder do
   `PhoenixKitEntities.Components.LiveDataForm` in both modes — `:edit`
   via `build_fields/3` (it passes its `lang` attr straight through as
   `lang_code`), `:readonly` directly via `translated_label/2` /
-  `translated_option_label/3`.
+  `translated_option_label/3`, and by
+  `PhoenixKitEntities.Components.EntityForm` (the public entity form), which
+  passes the page's language (see `PhoenixKitEntities.PublicFormLocale`).
 
   **Not** resolved — these surfaces render the canonical field text
   regardless of locale, by design; this is a scope boundary, not a bug:
@@ -103,9 +110,6 @@ defmodule PhoenixKitEntities.FormBuilder do
     non-multilang branch calls `build_fields/3` with `lang_code: nil`
     hardcoded; the multilang branch only passes a real locale when the
     multilang module itself is enabled, otherwise also `nil`.
-  - `PhoenixKitEntities.Components.EntityForm` (the public entity
-    submission form) — doesn't pass `lang_code` to `build_fields/3` at
-    all.
   - Validation error messages (`EntityData.changeset/2` and
     `validate_data/3` here) — always interpolate the canonical
     `field_def["label"]` / `field["label"]`, never a translation.
@@ -288,11 +292,11 @@ defmodule PhoenixKitEntities.FormBuilder do
         if primary_value != nil and to_string(primary_value) != "" do
           to_string(primary_value)
         else
-          field["placeholder"] || default
+          translated_placeholder(field, opts[:lang_code]) || default
         end
 
       _ ->
-        field["placeholder"] || default
+        translated_placeholder(field, opts[:lang_code]) || default
     end
   end
 
@@ -384,6 +388,32 @@ defmodule PhoenixKitEntities.FormBuilder do
     end
   end
 
+  @doc """
+  Resolves a field's placeholder for `lang_code`, honoring `"translations" =>
+  %{lang => %{"placeholder" => ...}}`. Falls back to `field["placeholder"]`
+  (which may be nil) exactly like `translated_label/2` does for the label.
+  Display-only.
+  """
+  @spec translated_placeholder(map(), String.t() | nil) :: String.t() | nil
+  def translated_placeholder(field, lang_code) when is_map(field),
+    do: translated_text(field, "placeholder", lang_code)
+
+  @doc """
+  Resolves a field's help text (`"description"`) for `lang_code`, honoring
+  `"translations" => %{lang => %{"description" => ...}}`, with the same
+  fallback to the field's own `"description"`. Display-only.
+  """
+  @spec translated_description(map(), String.t() | nil) :: String.t() | nil
+  def translated_description(field, lang_code) when is_map(field),
+    do: translated_text(field, "description", lang_code)
+
+  defp translated_text(field, key, lang_code) do
+    case Map.get(lookup_field_translation(field, lang_code), key) do
+      value when is_binary(value) and value != "" -> value
+      _ -> field[key]
+    end
+  end
+
   defp lookup_field_translation(_field, nil), do: %{}
 
   defp lookup_field_translation(field, lang_code) when is_binary(lang_code) do
@@ -403,7 +433,14 @@ defmodule PhoenixKitEntities.FormBuilder do
   # 1. Exact key match (`"ru-RU"` -> `"ru-RU"`).
   # 2. Same base code (`"ru"` -> first `"ru-*"` translation, deterministic
   #    via sort).
-  defp lookup_translation(translations_map, lang_code) do
+  @doc """
+  The entry of a `"translations"` map for `lang_code`: an exact key, else the
+  first key (by code) with the same base language, else `%{}`. This is the
+  lookup behind `translated_label/2` and the other field resolvers, and what
+  `PhoenixKitEntities.PublicFormLocale` uses for the entity-level texts.
+  """
+  @spec lookup_translation(map(), String.t()) :: map()
+  def lookup_translation(translations_map, lang_code) do
     case Map.get(translations_map, lang_code) do
       %{} = exact ->
         exact
@@ -477,9 +514,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -513,9 +550,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       >{@value}</textarea>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -549,9 +586,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -585,9 +622,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -623,9 +660,9 @@ defmodule PhoenixKitEntities.FormBuilder do
       <.label class="label">
         <span class="fieldset-label">{gettext("Rich text editor (HTML supported)")}</span>
       </.label>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -661,9 +698,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -693,9 +730,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"] && !@opts[:primary_placeholders]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -734,9 +771,9 @@ defmodule PhoenixKitEntities.FormBuilder do
           </span>
         </label>
       </div>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -760,9 +797,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         required={@field["required"]}
         disabled={@opts[:disabled]}
       />
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -795,7 +832,7 @@ defmodule PhoenixKitEntities.FormBuilder do
           disabled={@opts[:disabled]}
         >
           <%= if @field["allow_empty"] || !@field["required"] do %>
-            <option value="">{@field["placeholder"] || gettext("Select an option...")}</option>
+            <option value="">{translated_placeholder(@field, @opts[:lang_code]) || gettext("Select an option...")}</option>
           <% end %>
           <%= for option <- (@field["options"] || []) do %>
             <option
@@ -822,9 +859,9 @@ defmodule PhoenixKitEntities.FormBuilder do
           disabled={@opts[:disabled]}
         />
       <% end %>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -888,9 +925,9 @@ defmodule PhoenixKitEntities.FormBuilder do
           </label>
         <% end %>
       </div>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -952,9 +989,9 @@ defmodule PhoenixKitEntities.FormBuilder do
           </label>
         <% end %>
       </div>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -1041,9 +1078,9 @@ defmodule PhoenixKitEntities.FormBuilder do
           </button>
         </div>
       </div>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -1139,9 +1176,9 @@ defmodule PhoenixKitEntities.FormBuilder do
         </div>
       </div>
 
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>
@@ -1249,9 +1286,9 @@ defmodule PhoenixKitEntities.FormBuilder do
             no_matches_label={gettext("No matches")}
           />
       <% end %>
-      <%= if @field["description"] do %>
+      <%= if translated_description(@field, @opts[:lang_code]) do %>
         <.label class="label">
-          <span class="fieldset-label">{@field["description"]}</span>
+          <span class="fieldset-label">{translated_description(@field, @opts[:lang_code])}</span>
         </.label>
       <% end %>
     </div>

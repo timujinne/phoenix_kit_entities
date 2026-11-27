@@ -1,0 +1,132 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Leave this field empty"
+msgstr "Laissez ce champ vide"
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Submit"
+msgstr "Envoyer"
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Form configuration error."
+msgstr "Erreur de configuration du formulaire."
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "This form is currently unavailable."
+msgstr "Ce formulaire est actuellement indisponible."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Entity not found"
+msgstr "Formulaire introuvable"
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Public form is not enabled for this entity"
+msgstr "Le formulaire public n'est pas activé"
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "There was an error submitting the form."
+msgstr "Une erreur s'est produite lors de l'envoi du formulaire."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Please take your time filling out the form."
+msgstr "Veuillez prendre le temps de remplir le formulaire."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Too many submissions. Please try again later."
+msgstr "Trop d'envois. Veuillez réessayer plus tard."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Form submitted successfully!"
+msgstr "Formulaire envoyé avec succès !"
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "There was an error submitting the form. Please try again."
+msgstr "Une erreur s'est produite lors de l'envoi du formulaire. Veuillez réessayer."
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "user@example.com"
+msgstr "nom@example.com"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "https://example.com"
+msgstr "https://example.com"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Enter rich text content..."
+msgstr "Saisissez votre texte..."
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Rich text editor (HTML supported)"
+msgstr "Éditeur de texte enrichi (HTML pris en charge)"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "Activé"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Disabled"
+msgstr "Désactivé"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Select an option..."
+msgstr "Sélectionnez une option..."
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Other"
+msgstr "Autre"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "Enter custom value"
+msgstr "Saisissez une valeur personnalisée"
+
+#: lib/phoenix_kit_entities/form_builder.ex
+#, elixir-autogen, elixir-format
+msgid "is required"
+msgstr "est obligatoire"
+
+msgid "Please complete the verification and try again."
+msgstr "Veuillez terminer la vérification et réessayer."
+
+msgid "The verification service is not available right now. Please try again in a few minutes."
+msgstr "Le service de vérification est momentanément indisponible. Veuillez réessayer dans quelques minutes."
+
+msgid "Please wait for the verification to finish, then try again. If you do not see it, reload the page."
+msgstr "Attendez la fin de la vérification, puis réessayez. Si elle ne s’affiche pas, rechargez la page."
+
+msgid "The verification could not load, so this form cannot be sent. Your browser or network is blocking challenges.cloudflare.com: allow it (a content blocker is the usual cause), then reload the page."
+msgstr "Le formulaire ne peut pas être envoyé car la vérification n’a pas pu se charger. Votre navigateur ou votre réseau bloque challenges.cloudflare.com. Autorisez ce domaine (le blocage provient souvent d’un bloqueur de contenu), puis rechargez la page."
+
+msgid "The verification could not start. Please reload the page."
+msgstr "La vérification n’a pas pu démarrer. Veuillez recharger la page."

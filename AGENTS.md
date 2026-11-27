@@ -10,8 +10,9 @@ entity are stored as *entity data* rows sharing one JSONB shape. It implements
 the `PhoenixKit.Module` behaviour, so a host app gets the admin UI, settings,
 permissions, migrations and routes by adding the dependency — no wiring.
 
-- **Depends on:** `phoenix_kit` `>= 3.5.0 and < 4.0.0` (Hex; floor 3.5.0, the
-  ecosystem-wide minimum, ceiling open through core 3.x), `phoenix_live_view` `~> 1.0`,
+- **Depends on:** `phoenix_kit` `>= 3.7.0 and < 4.0.0` (Hex; floor 3.7.0 — the
+  first core with `PhoenixKit.Integrations.Turnstile`, which the public form's
+  Turnstile option calls — ceiling open through core 3.x), `phoenix_live_view` `~> 1.0`,
   `gettext` `~> 1.0`. `lazy_html` is test-only (`Phoenix.LiveViewTest`'s HTML
   parser). No sibling `phoenix_kit_*` deps.
 - **Consumed by:** `phoenix_kit_catalogue` (attribute sets are MANAGED
@@ -40,7 +41,8 @@ permissions, migrations and routes by adding the dependency — no wiring.
 - **Authentication on public form submissions** — the public POST
   endpoint at `/entities/:entity_slug/submit` accepts un-authed
   submissions on purpose (it is the public-form contract). Defense is
-  honeypot + minimum submission time + rate limiting, not auth.
+  honeypot + minimum submission time + rate limiting + optional Cloudflare
+  Turnstile, not auth.
 - **Per-entity push-notification or webhook delivery** — `Events`
   broadcasts to PubSub for in-app reactivity. External webhook
   delivery is out of scope.
@@ -122,7 +124,9 @@ Repo-local aliases:
 - **All LiveView templates are inline `~H` sigils** (no separate `.heex`
   files), so Tailwind's scanner sees every class.
 - **Gettext:** own backend `PhoenixKitEntities.Gettext` over `priv/gettext`
-  (`en`, `et`, `ru`). The catalogues are **hand-maintained** — there is no
+  (`en`, `et`, `ru`, plus `de` and `fr`, which carry only the strings a
+  visitor of the public form can see — an msgid they lack renders in English,
+  as for any locale). The catalogues are **hand-maintained** — there is no
   `mix gettext.extract` step in this repo's workflow; add msgids by hand.
   `gettext_noop/1` anchors extraction at definition sites (permission label,
   tab labels) so they survive rewording elsewhere. Three invariants are pinned
@@ -249,16 +253,42 @@ Repo-local aliases:
   primary language gets no prefix; other locales get `/<base>/…`.
   `public_alternates/3` returns `%{canonical, alternates: [%{locale, href}, …,
   %{locale: "x-default", href}]}` for hreflang/canonical tags.
+- **The public form speaks the page's language, and stores flat data.**
+  `PublicFormLocale` resolves one of the site's ENABLED language codes (the
+  `locale` attribute or the hidden `_locale` field, only if it names an enabled
+  language; else `Multilang.current_locale/0`; `nil` on a single-language site).
+  Title, description, submit text and success message: the primary language is
+  the flat `public_form_*` setting, every other language
+  `settings["translations"][lang][<same key>]` (the builder edits them on the
+  language tabs, through the `entities[translations][lang][...]` form params
+  `merge_translation_params/2` already handles), blank falls back to flat.
+  Field texts go through `FormBuilder`'s `lang_code`. The controller wraps
+  `submit/2` in the posted language's Gettext locale. Never pass the posted
+  value on unchecked, and never store a translation in the submitted data.
 - **Public form controller defense** — the POST at
   `/entities/:entity_slug/submit` is intentionally un-authed. Protection is a
-  honeypot field, a minimum submission time and a Hammer per-IP-per-entity rate
-  limit. The client address (rate-limit key and stored metadata alike) comes
-  from core's `PhoenixKit.Utils.IpAddress.extract_from_conn/1`, never from a
-  header read here: `X-Forwarded-For` counts only when the TCP peer is a
-  loopback or private address, and then only its LAST entry, so a direct
-  client rotating the header stays in one bucket. Stored metadata (user-agent,
-  referer) is capped at 255 chars to prevent JSONB bloat. Every submitted
-  value is size-capped (the field's `max_length`, else a flat ceiling);
+  honeypot field, a minimum submission time, a Hammer per-IP-per-entity rate
+  limit and, per entity, Cloudflare Turnstile (`PublicFormTurnstile`, on the
+  connection the entity selects from core's website integrations, never the
+  Authorization page's auth-forms switch). Turnstile runs last and is skipped
+  once another check rejects; no Cloudflare verdict fails closed, but a
+  switched-on option whose connection cannot verify lets the request through
+  as core does for its auth forms — with a logged error naming the entity, a
+  `turnstile_unchecked_triggers` count and a `security_warnings` flag on the
+  stored submission. The widget is core's hook element; this module's JS
+  bundle starts it on pages that are not LiveViews and keeps a tokenless
+  submit from leaving the page. It finds its parts by class and by a hidden
+  `_turnstile_sitekey` field, never by `data-*`/`phx-*`/`hidden`/`<noscript>`,
+  because Publishing's page sanitizer strips those from an inline form
+  (`public_form_turnstile_sanitized_test.exs` pins it against a copy of that
+  allow-list). A missing token is refused loudly even under `reject_silent`.
+  The client address (rate-limit key and stored metadata alike) comes from
+  core's `PhoenixKit.Utils.IpAddress.extract_from_conn/1`, never from a header
+  read here: `X-Forwarded-For` counts only when the TCP peer is a loopback or
+  private address, and then only its LAST entry, so a direct client rotating
+  the header stays in one bucket. Stored metadata (user-agent, referer) is
+  capped at 255 chars to prevent JSONB bloat. Every submitted value is
+  size-capped (the field's `max_length`, else a flat ceiling);
   `relation`, `file` and `heading` fields never take a public value; an
   archived entity refuses submissions.
 - **Public-form statistics are one atomic bump**
@@ -356,7 +386,7 @@ Repo-local aliases:
 - Narrowing the core pin to a three-segment `~> 3.5.x` breaks CONSUMERS only
   (`~> 3.5.x` excludes every 3.6+ core, so a host wanting both this module
   and a newer core gets an unsolvable dep set). Raising the floor of the
-  compound `>= 3.5.0 and < 4.0.0` pin is fine, and required whenever code
+  compound `>= 3.7.0 and < 4.0.0` pin is fine, and required whenever code
   starts calling a newer core API.
   `core_pin_conformance_test.exs` guards it; nothing else in this repo would
   notice.
@@ -599,6 +629,28 @@ for i in $(seq 1 10); do mix test; done       # stability check
 | Feature | Constraint | Guide |
 |---|---|---|
 | Reorder + trash lifecycle | Reorder is capped at 1000 uuids and scoped by `entity_uuid` in the DB layer; trashed rows stay in the table so host FKs keep resolving, and every reorder path emits exactly one audit row (success, DB error, or rejection). | [dev_docs/guides/entity-data-lifecycle.md](dev_docs/guides/entity-data-lifecycle.md) |
+
+## Content-Security-Policy
+
+The module works under a host policy that allows inline code by nonce only
+(`script-src 'self' 'nonce-…'`); core's guide is `guides/content-security-policy.md`.
+It renders no inline `<script>` / `<style>` and no inline event handler today.
+
+- No inline event handlers (`onclick=`, `onerror=` …), in markup or in HTML the
+  bundle builds: no nonce covers an attribute. Use a `phx-` binding, or a hook /
+  listener in `priv/static/assets/phoenix_kit_entities.js`.
+- A new inline `<style>` / `<script>` carries the page's nonce. Core's
+  `PhoenixKitWeb.CSP.nonce/1` is newer than this module's core floor, so read it
+  through a feature-detecting helper (`Code.ensure_loaded?/1` +
+  `function_exported?/3` + `apply/3`, answering `nil` on an older core; reference:
+  `PhoenixKitComments.Web.CSP`). Never raise the core floor for it.
+- A `<style>` / `<script>` the bundle creates is stamped before insertion:
+  `window.PhoenixKitInternals && window.PhoenixKitInternals.adoptStyle && window.PhoenixKitInternals.adoptStyle(el)`.
+  The one exception is the Cloudflare Turnstile loader of the public form: a third
+  party's external script gets no borrowed nonce (core does the same), the host
+  allows `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
+- `test/csp_inline_tags_test.exs` enforces all of it. Inline `style="…"` attributes
+  are not covered yet.
 
 ## Versioning & releases
 

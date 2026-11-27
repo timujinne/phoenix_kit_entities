@@ -11,6 +11,16 @@ msgstr ""
 "Language: et\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Leave this field empty"
+msgstr "Jätke see väli tühjaks"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "These texts are for the selected language. Leave one empty to use the primary language's text."
+msgstr "Need tekstid on valitud keele jaoks. Jätke üks tühjaks, et kasutada põhikeele teksti."
+
 #: lib/phoenix_kit_entities/web/entity_form.ex:2209
 #, elixir-autogen, elixir-format
 msgid "%{count} Field Definition"
@@ -3017,3 +3027,103 @@ msgstr "Üksuste süsteemi ja peegeldamise sisse- ja väljalülitamine, eksport 
 #, elixir-autogen, elixir-format
 msgid "You do not have permission to change Entities settings."
 msgstr "Teil pole õigust üksuste seadeid muuta."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification token not accepted."
+msgstr "[Debug] Esitamine lükati tagasi: Turnstile'i kinnitustõend ei kõlvanud."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification service unavailable."
+msgstr "[Debug] Esitamine lükati tagasi: Turnstile'i kinnitusteenus pole saadaval."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Please complete the verification and try again."
+msgstr "Palun läbige kinnitus ja proovige uuesti."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "The verification service is not available right now. Please try again in a few minutes."
+msgstr "Kinnitusteenus pole praegu saadaval. Palun proovige mõne minuti pärast uuesti."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Cloudflare Turnstile"
+msgstr "Cloudflare Turnstile"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Ask visitors to pass a Cloudflare Turnstile check. Needs a Turnstile connection configured in the core Integrations settings, and the site's JavaScript bundle on the page that shows the form."
+msgstr "Paluge külastajatel läbida Cloudflare Turnstile'i kontroll. Vajab Turnstile'i ühendust, mis on seadistatud tuuma integratsioonide seadetes, ning saidi JavaScripti paketti lehel, kus vorm kuvatakse."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Open integrations"
+msgstr "Ava integratsioonid"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile connection:"
+msgstr "Turnstile'i ühendus:"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Select a connection"
+msgstr "Valige ühendus"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "No verified Cloudflare Turnstile connection exists. Add one in the core Integrations settings; until then submissions are not checked."
+msgstr "Kinnitatud Cloudflare Turnstile'i ühendust pole. Lisage see tuuma integratsioonide seadetes; seni esitusi ei kontrollita."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Select a Turnstile connection below; until then submissions are not checked."
+msgstr "Valige allpool Turnstile'i ühendus; seni esitusi ei kontrollita."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The selected Turnstile connection is gone or no longer verified. Select another; until then submissions are not checked."
+msgstr "Valitud Turnstile'i ühendus on kadunud või pole enam kinnitatud. Valige mõni teine; seni esitusi ei kontrollita."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile: %{count}"
+msgstr "Turnstile: %{count}"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile unavailable: %{count}"
+msgstr "Turnstile pole saadaval: %{count}"
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "[Debug] Submission rejected: Turnstile verification token missing."
+msgstr "[Debug] Esitamine lükati tagasi: Turnstile'i kinnitustõend puudub."
+
+#: lib/phoenix_kit_entities/controllers/entity_form_controller.ex
+#, elixir-autogen, elixir-format
+msgid "Please wait for the verification to finish, then try again. If you do not see it, reload the page."
+msgstr "Palun oodake kinnituse lõppu ja proovige seejärel uuesti. Kui te seda ei näe, laadige leht uuesti."
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile (no token): %{count}"
+msgstr "Turnstile (tõend puudub): %{count}"
+
+#: lib/phoenix_kit_entities/web/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "Turnstile not checked: %{count}"
+msgstr "Turnstile'iga kontrollimata: %{count}"
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The verification could not load, so this form cannot be sent. Your browser or network is blocking challenges.cloudflare.com: allow it (a content blocker is the usual cause), then reload the page."
+msgstr "Kinnitust ei saanud laadida, seega seda vormi ei saa saata. Teie brauser või võrk blokeerib aadressi challenges.cloudflare.com: lubage see (tavaliselt on põhjuseks sisublokeerija) ja laadige leht uuesti."
+
+#: lib/phoenix_kit_entities/components/entity_form.ex
+#, elixir-autogen, elixir-format
+msgid "The verification could not start. Please reload the page."
+msgstr "Kinnitust ei õnnestunud käivitada. Palun laadige leht uuesti."

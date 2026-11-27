@@ -11,6 +11,8 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
   alias PhoenixKitEntities.FormBuilder
+  alias PhoenixKitEntities.PublicFormLocale
+  alias PhoenixKitEntities.PublicFormTurnstile
 
   require Logger
 
@@ -56,8 +58,22 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   @doc """
   Handles public form submission for entities.
+
+  Answers (flash messages, the success text) in the language the form was
+  shown in: the posted `_locale`, if it names an enabled language, else the
+  request's own. See `PhoenixKitEntities.PublicFormLocale`.
   """
   def submit(conn, %{"entity_slug" => entity_slug} = params) do
+    locale = PublicFormLocale.resolve(Map.get(params, "_locale"))
+
+    PublicFormLocale.with_gettext(locale, fn ->
+      conn
+      |> put_private(:phoenix_kit_entities_form_locale, locale)
+      |> do_submit(entity_slug, params)
+    end)
+  end
+
+  defp do_submit(conn, entity_slug, params) do
     entity = Entities.get_entity_by_name(entity_slug)
 
     cond do
@@ -83,12 +99,20 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
   defp run_security_checks(conn, entity, params) do
     settings = entity.settings || %{}
 
-    # Collect all security check results
-    checks = [
+    # Collect all security check results. Turnstile goes last and is skipped
+    # once another check already refuses the submission: it is the only check
+    # that calls out to another service, and a request that is dropped anyway
+    # must not cost one.
+    local_checks = [
       check_honeypot(settings, params),
       check_submission_time(settings, params),
       check_rate_limit(conn, settings, entity)
     ]
+
+    checks =
+      if Enum.any?(local_checks, &rejecting?/1),
+        do: local_checks,
+        else: local_checks ++ [check_turnstile(conn, entity, settings, params)]
 
     # Find any triggered checks that require action
     triggered =
@@ -104,6 +128,9 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     end
   end
 
+  defp rejecting?({:triggered, _type, action}), do: action in ["reject_silent", "reject_error"]
+  defp rejecting?(_check), do: false
+
   defp handle_security_result(conn, entity, params, :ok) do
     handle_submission(conn, entity, params, [])
   end
@@ -117,7 +144,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
     save_flags =
       Enum.filter(flags, fn {:triggered, _type, action} ->
-        action in ["save_suspicious", "save_log"]
+        action in ["save_suspicious", "save_log", "none"]
       end)
 
     cond do
@@ -163,7 +190,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
     else
       # Silent rejection - show fake success
       conn
-      |> put_flash(:info, get_success_message(entity))
+      |> put_flash(:info, get_success_message(conn, entity))
       |> redirect_back(conn)
     end
   end
@@ -181,6 +208,15 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
   defp get_error_message(:rate_limited, true),
     do: gettext("[Debug] Submission rejected: Rate limit exceeded (5 submissions per minute).")
 
+  defp get_error_message(:turnstile, true),
+    do: gettext("[Debug] Submission rejected: Turnstile verification token not accepted.")
+
+  defp get_error_message(:turnstile_missing, true),
+    do: gettext("[Debug] Submission rejected: Turnstile verification token missing.")
+
+  defp get_error_message(:turnstile_unavailable, true),
+    do: gettext("[Debug] Submission rejected: Turnstile verification service unavailable.")
+
   defp get_error_message(type, true),
     do: gettext("[Debug] Submission rejected: Security check failed (%{type}).", type: type)
 
@@ -192,6 +228,21 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
 
   defp get_error_message(:rate_limited, false),
     do: gettext("Too many submissions. Please try again later.")
+
+  defp get_error_message(:turnstile, false),
+    do: gettext("Please complete the verification and try again.")
+
+  defp get_error_message(:turnstile_missing, false),
+    do:
+      gettext(
+        "Please wait for the verification to finish, then try again. If you do not see it, reload the page."
+      )
+
+  defp get_error_message(:turnstile_unavailable, false),
+    do:
+      gettext(
+        "The verification service is not available right now. Please try again in a few minutes."
+      )
 
   defp get_error_message(_, false), do: gettext("There was an error submitting the form.")
 
@@ -280,9 +331,65 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
       :ok
   end
 
-  defp get_success_message(entity) do
-    settings = entity.settings || %{}
-    Map.get(settings, "public_form_success_message", gettext("Form submitted successfully!"))
+  # The token rides in the POST as `cf-turnstile-response`. A missing or
+  # refused token triggers the configured action; no verdict from Cloudflare
+  # fails closed (see `PhoenixKitEntities.PublicFormTurnstile` for the policy,
+  # including an unusable connection).
+  defp check_turnstile(conn, entity, settings, params) do
+    if PublicFormTurnstile.enabled?(settings) do
+      token = Map.get(params, PublicFormTurnstile.response_field())
+      ip = IpAddress.extract_from_conn(conn)
+      action = security_action(Map.get(settings, "public_form_turnstile_action"))
+
+      case PublicFormTurnstile.verify(settings, token, ip) do
+        :ok ->
+          :ok
+
+        :unchecked ->
+          Logger.error(
+            "[EntityFormController] Turnstile is switched on for entity #{entity.name} " <>
+              "(#{entity.uuid}) but its connection cannot verify tokens, so this " <>
+              "submission was not checked"
+          )
+
+          # Not an action anybody chose: it saves, flags the record, and stops there.
+          {:triggered, :turnstile_unchecked, "none"}
+
+        {:error, :unavailable} ->
+          {:triggered, :turnstile_unavailable, loud(action)}
+
+        {:error, :missing} ->
+          {:triggered, :turnstile_missing, loud(action)}
+
+        {:error, :rejected} ->
+          {:triggered, :turnstile, action}
+      end
+    else
+      :ok
+    end
+  end
+
+  # A stored action nobody understands (hand-edited settings) must not open the
+  # form: anything but the four known actions refuses with an error.
+  defp security_action(action)
+       when action in ~w(reject_silent reject_error save_suspicious save_log),
+       do: action
+
+  defp security_action(_action), do: "reject_error"
+
+  # An outage, or a widget that never started (no token), is not the visitor's
+  # doing: never swallow their submission with a fake success. `reject_silent`
+  # stays for a token Cloudflare actually refused.
+  defp loud("reject_silent"), do: "reject_error"
+  defp loud(action), do: action
+
+  defp get_success_message(conn, entity) do
+    PublicFormLocale.text(
+      entity.settings,
+      "public_form_success_message",
+      conn.private[:phoenix_kit_entities_form_locale],
+      gettext("Form submitted successfully!")
+    )
   end
 
   defp apply_security_flags(metadata, [], _logger) do
@@ -397,7 +504,7 @@ defmodule PhoenixKitEntities.Controllers.EntityFormController do
       increment_form_stats(entity, :submitted, security_flags)
 
       conn
-      |> put_flash(:info, get_success_message(entity))
+      |> put_flash(:info, get_success_message(conn, entity))
       |> redirect_back(conn)
     else
       _too_large_or_invalid ->

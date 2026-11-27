@@ -768,6 +768,14 @@ Public form settings are stored in the entity's `settings` JSONB column:
 | `public_form_collect_metadata` | boolean | true | Collect IP, browser, device info |
 | `public_form_debug_mode` | boolean | false | Show detailed security errors |
 
+The four texts (`public_form_title`, `public_form_description`,
+`public_form_submit_text`, `public_form_success_message`) are the
+primary-language values. Another language's are stored under
+`settings["translations"][<language code>]` with the same keys, edited on the
+language tabs of the builder's public-form section; an empty or missing one
+falls back to the flat value. See "Languages of the public form" in
+`OVERVIEW.md`.
+
 ### Security Options
 
 #### Honeypot Protection
@@ -797,6 +805,18 @@ Limits submissions per IP address (5 per minute):
 | `public_form_rate_limit` | boolean | false | Enable rate limiting |
 | `public_form_rate_limit_action` | string | "reject_error" | Action when triggered |
 
+#### Cloudflare Turnstile
+
+Needs a verified Turnstile connection in the core Integrations settings
+(core 3.7.0+); see "Cloudflare Turnstile" in `OVERVIEW.md` for the failure
+policy.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `public_form_turnstile` | boolean | false | Render the widget and verify the token |
+| `public_form_turnstile_connection` | string (uuid) | nil | The connection that supplies the site key and verifies |
+| `public_form_turnstile_action` | string | "reject_error" | Action when the check fails |
+
 ### Security Actions
 
 Each security option can be configured with one of four actions:
@@ -820,6 +840,10 @@ Statistics are automatically tracked in `settings["public_form_stats"]`:
   "honeypot_triggers" => 5,
   "too_fast_triggers" => 2,
   "rate_limited_triggers" => 1,
+  "turnstile_triggers" => 3,             # token refused by Cloudflare
+  "turnstile_missing_triggers" => 4,     # no token sent
+  "turnstile_unavailable_triggers" => 0, # Cloudflare gave no verdict
+  "turnstile_unchecked_triggers" => 0,   # option on, connection cannot verify
   "last_submission_at" => "2025-01-15T10:30:00Z"
 }
 ```
@@ -1155,7 +1179,7 @@ EntityData.get_all_title_translations(record)
 | Limitation | Details | Workaround |
 |------------|---------|------------|
 | **Search is primary-language only** | The data navigator search queries the primary language data. Secondary language content is not included in search results. | Use the convenience API (`get_translation/2`) for programmatic cross-language search. |
-| **Public form builder creates flat data** | The public-facing entity form (`EntityFormBuilder`) writes flat JSONB (no multilang structure). Records created via public forms only contain one language. | Edit the record in the admin UI to add translations, or use `set_translation/3` programmatically. |
+| **Public form builder creates flat data** | The public-facing entity form (`EntityFormBuilder`) writes flat JSONB (no multilang structure). Records created via public forms only contain one language. | Edit the record in the admin UI to add translations, or use `set_translation/3` programmatically. The form itself is shown and answered in the visitor's language; only the stored submission is flat. |
 | **Clearing a secondary field inherits from primary** | When a secondary language field is cleared (empty string), the display falls back to the primary language value. There is no way to set a field to explicitly empty. | This is by design — override-only storage treats empty as "not overridden". |
 | **Entity definition translations are manual** | When the global primary language changes, entity definition translations (display_name, description) are not automatically re-keyed. | Edit the entity definition to enter the new primary language values manually. This is acceptable since entity definitions are low-volume. |
 | **Un-saved re-keying is repeated** | Lazy re-keying on edit is not persisted until the user saves. If the user opens and closes without saving, re-keying happens again on next edit. | This is idempotent and by design. |

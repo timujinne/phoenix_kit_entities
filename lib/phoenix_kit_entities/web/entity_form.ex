@@ -20,6 +20,15 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
   import PhoenixKitWeb.Components.MultilangForm
 
+  # The selects that set one security setting each. A `phx-change` on a select
+  # delivers that select's own `name => value` (never a `phx-value-*`), so the
+  # setting is whichever of these names the payload carries.
+  @security_action_keys ~w(public_form_honeypot_action public_form_time_check_action public_form_rate_limit_action public_form_turnstile_action)
+  @public_form_text_keys ~w(public_form_title public_form_description public_form_submit_text public_form_success_message)
+  @security_toggle_keys ~w(public_form_collect_metadata public_form_debug_mode public_form_honeypot public_form_time_check public_form_rate_limit public_form_turnstile)
+  @security_actions ~w(reject_silent reject_error save_suspicious save_log)
+  @turnstile_connection_key "public_form_turnstile_connection"
+
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.HeroIcons
   alias PhoenixKit.Utils.Number
@@ -32,6 +41,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
   alias PhoenixKitEntities.Mirror.Storage
   alias PhoenixKitEntities.Presence
   alias PhoenixKitEntities.PresenceHelpers
+  alias PhoenixKitEntities.PublicFormTurnstile
   alias PhoenixKitEntities.Relations
   alias PhoenixKitWeb.Actor
 
@@ -186,6 +196,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       |> assign(:page_section, gettext("Entities"))
       |> assign(:page_section_path, Routes.path("/admin/entities"))
       |> assign(:page_crumbs, entity_crumbs(entity))
+      |> assign(:turnstile_choices, turnstile_choices(entity.settings))
       |> assign(:project_title, project_title)
       |> assign(:entity, entity)
       |> assign(:changeset, changeset)
@@ -288,7 +299,12 @@ defmodule PhoenixKitEntities.Web.EntityForm do
       # "Create and Return" / "Update and Return" submits a second button
       # named `return_to_list=true`; the regular Create/Update button omits it.
       return_to_list? = params["return_to_list"] == "true"
-      do_save(entity_params, assign(socket, :return_to_list, return_to_list?))
+
+      do_save(
+        entity_params,
+        Map.take(params, @public_form_text_keys),
+        assign(socket, :return_to_list, return_to_list?)
+      )
     else
       {:noreply, put_flash(socket, :error, gettext("Cannot save - you are spectating"))}
     end
@@ -321,6 +337,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         |> assign(:show_icon_picker, false)
         |> assign(:delete_confirm_index, nil)
         |> assign(:form_stats_reset?, false)
+        |> sync_turnstile_choices()
         |> put_flash(:info, gettext("Changes reset to last saved state"))
 
       reply_with_broadcast(socket)
@@ -724,47 +741,24 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     end
   end
 
-  def handle_event("update_public_form_setting", params, socket) do
+  # The four public-form texts of the primary language. The inputs carry
+  # `phx-value-setting` because a `phx-blur` event delivers the element's
+  # `phx-value-*` attributes and its `value`, never its `name`.
+
+  def handle_event(
+        "update_public_form_setting",
+        %{"setting" => setting_name, "value" => value},
+        socket
+      )
+      when setting_name in @public_form_text_keys and is_binary(value) do
     if socket.assigns[:lock_owner?] do
-      current_settings = socket.assigns.entity.settings || %{}
-
-      # Extract the setting name and value from params
-      {setting_name, value} =
-        cond do
-          Map.has_key?(params, "public_form_title") ->
-            {"public_form_title", params["public_form_title"]}
-
-          Map.has_key?(params, "public_form_description") ->
-            {"public_form_description", params["public_form_description"]}
-
-          Map.has_key?(params, "public_form_submit_text") ->
-            {"public_form_submit_text", params["public_form_submit_text"]}
-
-          Map.has_key?(params, "public_form_success_message") ->
-            {"public_form_success_message", params["public_form_success_message"]}
-
-          true ->
-            {nil, nil}
-        end
-
-      if setting_name do
-        updated_settings = Map.put(current_settings, setting_name, value)
-        updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-        changeset = settings_changeset(socket, updated_entity)
-
-        socket =
-          socket
-          |> assign(:entity, updated_entity)
-          |> assign(:changeset, changeset)
-
-        reply_with_broadcast(socket)
-      else
-        {:noreply, socket}
-      end
+      put_setting(socket, &Map.put(&1, setting_name, value))
     else
       {:noreply, socket}
     end
   end
+
+  def handle_event("update_public_form_setting", _params, socket), do: {:noreply, socket}
 
   def handle_event("toggle_public_form_field", %{"field" => field_key}, socket) do
     if socket.assigns[:lock_owner?] do
@@ -794,16 +788,17 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     end
   end
 
-  def handle_event("toggle_security_setting", %{"setting" => setting_key}, socket) do
+  def handle_event("toggle_security_setting", %{"setting" => setting_key}, socket)
+      when setting_key in @security_toggle_keys do
     if socket.assigns[:lock_owner?] do
       current_settings = socket.assigns.entity.settings || %{}
 
       # For metadata, default is true (enabled), so we check != false
       current_value =
-        if setting_key == "public_form_collect_metadata" do
-          Map.get(current_settings, setting_key) != false
-        else
-          Map.get(current_settings, setting_key, false)
+        case setting_key do
+          "public_form_collect_metadata" -> Map.get(current_settings, setting_key) != false
+          "public_form_turnstile" -> PublicFormTurnstile.enabled?(current_settings)
+          _ -> Map.get(current_settings, setting_key, false)
         end
 
       updated_settings = Map.put(current_settings, setting_key, !current_value)
@@ -814,6 +809,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         socket
         |> assign(:entity, updated_entity)
         |> assign(:changeset, changeset)
+        |> refresh_turnstile_choices(setting_key, updated_settings)
 
       reply_with_broadcast(socket)
     else
@@ -821,25 +817,15 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     end
   end
 
+  def handle_event("toggle_security_setting", _params, socket), do: {:noreply, socket}
+
   def handle_event("update_security_action", params, socket) do
     if socket.assigns[:lock_owner?] do
-      # Extract the setting key and value from params
-      # The select sends the setting name in phx-value-setting and value in the form field
-      setting_key = params["setting"]
-      # The value comes from the select with the same name as the setting
-      value = params[setting_key]
-
-      current_settings = socket.assigns.entity.settings || %{}
-      updated_settings = Map.put(current_settings, setting_key, value)
-      updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
-      changeset = settings_changeset(socket, updated_entity)
-
-      socket =
-        socket
-        |> assign(:entity, updated_entity)
-        |> assign(:changeset, changeset)
-
-      reply_with_broadcast(socket)
+      case security_select_change(params, socket) do
+        {:put, key, value} -> put_setting(socket, &Map.put(&1, key, value))
+        {:delete, key} -> put_setting(socket, &Map.delete(&1, key))
+        :ignore -> {:noreply, socket}
+      end
     else
       {:noreply, put_flash(socket, :error, gettext("Cannot edit - you are spectating"))}
     end
@@ -1056,12 +1042,18 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     end
   end
 
-  defp do_save(entity_params, socket) do
+  defp do_save(entity_params, primary_texts, socket) do
     existing_data = changeset_to_string_map(socket.assigns.changeset)
     entity_params = Map.merge(existing_data, entity_params)
     entity_params = Map.put(entity_params, "fields_definition", socket.assigns.fields)
 
-    settings = merge_translation_params(socket, entity_params)
+    # Submitting with Enter can send the final input value before its blur event.
+    settings =
+      Enum.reduce(primary_texts, merge_translation_params(socket, entity_params), fn
+        {key, ""}, settings -> Map.delete(settings, key)
+        {key, value}, settings when is_binary(value) -> Map.put(settings, key, value)
+        _, settings -> settings
+      end)
 
     settings =
       case entity_params["sort_mode"] do
@@ -1249,6 +1241,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
         |> assign(:fields, entity.fields_definition || [])
         |> assign(:has_unsaved_changes, false)
         |> assign(:form_stats_reset?, false)
+        |> sync_turnstile_choices()
         |> cache_entity_form_state(nil)
         |> then(&{:noreply, &1})
       else
@@ -1368,6 +1361,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     |> assign(:form_stats_reset?, reset? == true)
     |> assign(:delete_confirm_index, nil)
     |> assign(:has_unsaved_changes, true)
+    |> sync_turnstile_choices()
     # The FIFO owner's snapshot must stay current even when a different
     # editable tab sent the change; new joiners read that owner's metadata.
     |> cache_entity_form_state(payload)
@@ -1410,6 +1404,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     |> assign(:fields, fields)
     |> assign(:changeset, changeset)
     |> assign(:form_stats_reset?, false)
+    |> sync_turnstile_choices()
     |> maybe_update_available_icons()
   end
 
@@ -1615,6 +1610,95 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
   def format_stats_datetime(_), do: "-"
 
+  # The four security actions every public-form check offers, in menu order.
+  defp security_action_options do
+    [
+      {"reject_error", gettext("Reject with error message")},
+      {"reject_silent", gettext("Reject silently (fake success)")},
+      {"save_suspicious", gettext("Save but mark as suspicious")},
+      {"save_log", gettext("Save and log warning")}
+    ]
+  end
+
+  # Why a switched-on Turnstile check is not protecting the form.
+  defp turnstile_notice(:no_connections) do
+    gettext(
+      "No verified Cloudflare Turnstile connection exists. Add one in the core Integrations settings; until then submissions are not checked."
+    )
+  end
+
+  defp turnstile_notice(:no_selection) do
+    gettext("Select a Turnstile connection below; until then submissions are not checked.")
+  end
+
+  defp turnstile_notice(:stale_selection) do
+    gettext(
+      "The selected Turnstile connection is gone or no longer verified. Select another; until then submissions are not checked."
+    )
+  end
+
+  # What a security select's change event asks for, or `:ignore` when it names
+  # no known setting or carries a value the select could not have offered
+  # (a crafted event): an action must be one of the four, a connection one of
+  # the verified ones listed on the page, or empty to clear it.
+  defp security_select_change(params, socket) do
+    cond do
+      key = Enum.find(@security_action_keys, &Map.has_key?(params, &1)) ->
+        if params[key] in @security_actions, do: {:put, key, params[key]}, else: :ignore
+
+      Map.has_key?(params, @turnstile_connection_key) ->
+        case params[@turnstile_connection_key] do
+          "" -> {:delete, @turnstile_connection_key}
+          uuid when is_binary(uuid) -> turnstile_connection_change(uuid, socket)
+          _ -> :ignore
+        end
+
+      true ->
+        :ignore
+    end
+  end
+
+  defp turnstile_connection_change(uuid, socket) do
+    case Enum.find(socket.assigns.turnstile_choices, fn {id, _name} -> id == uuid end) do
+      {id, _name} -> {:put, @turnstile_connection_key, id}
+      nil -> :ignore
+    end
+  end
+
+  defp put_setting(socket, fun) do
+    updated_settings = fun.(socket.assigns.entity.settings || %{})
+    updated_entity = Map.put(socket.assigns.entity, :settings, updated_settings)
+
+    socket
+    |> assign(:entity, updated_entity)
+    |> assign(:changeset, settings_changeset(socket, updated_entity))
+    |> reply_with_broadcast()
+  end
+
+  # The verified connections are listed only while the option is on, and
+  # re-read when it is switched on (one may have been added meanwhile).
+  defp refresh_turnstile_choices(socket, "public_form_turnstile", settings) do
+    assign(socket, :turnstile_choices, turnstile_choices(settings))
+  end
+
+  defp refresh_turnstile_choices(socket, _setting_key, _settings), do: socket
+
+  # Keeps the page's list of verified connections in step with whichever copy
+  # of the settings the page now shows (a peer's change, a promotion to owner,
+  # a reset): a page that did not read them while the option was off would
+  # otherwise warn of "no connection" and ignore a pick.
+  defp sync_turnstile_choices(socket) do
+    settings = socket.assigns.entity.settings
+
+    if PublicFormTurnstile.enabled?(settings) and socket.assigns.turnstile_choices == [],
+      do: assign(socket, :turnstile_choices, PublicFormTurnstile.choices()),
+      else: socket
+  end
+
+  defp turnstile_choices(settings) do
+    if PublicFormTurnstile.enabled?(settings), do: PublicFormTurnstile.choices(), else: []
+  end
+
   defp ensure_live_source(socket) do
     socket.assigns[:live_source] ||
       (socket.id ||
@@ -1633,18 +1717,23 @@ defmodule PhoenixKitEntities.Web.EntityForm do
     # Extract translation params from form (e.g., %{"es-ES" => %{"display_name" => "Marcas"}})
     new_translations = entity_params["translations"] || %{}
 
-    # Merge new translations into existing, stripping empty values
+    # Merge per key: a posted value is put, a posted empty one removes its key
+    # (the language falls back to the primary text), and a key that was not
+    # posted stays. Replacing the whole language entry would delete what the
+    # page did not post — the public-form texts, whose inputs exist only while
+    # that section is on screen.
     updated_translations =
       Enum.reduce(new_translations, existing_translations, fn {lang_code, fields}, acc ->
-        cleaned =
-          fields
-          |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-          |> Map.new()
+        merged =
+          Enum.reduce(fields, Map.get(acc, lang_code) || %{}, fn
+            {k, v}, entry when is_nil(v) or v == "" -> Map.delete(entry, k)
+            {k, v}, entry -> Map.put(entry, k, v)
+          end)
 
-        if map_size(cleaned) == 0 do
+        if map_size(merged) == 0 do
           Map.delete(acc, lang_code)
         else
-          Map.put(acc, lang_code, cleaned)
+          Map.put(acc, lang_code, merged)
         end
       end)
 
@@ -2432,64 +2521,149 @@ defmodule PhoenixKitEntities.Web.EntityForm do
 
                 <%!-- Form Configuration --%>
                 <div class="space-y-4">
+                  <%!-- The texts exist per language: the primary language's are the
+                       flat settings, every other language's live in
+                       settings["translations"][lang] (posted with the form like the
+                       entity's own translations) and fall back to the primary text. --%>
+                  <% form_texts =
+                    if @multilang_enabled && @current_lang != @primary_language do
+                      ((@entity.settings || %{})["translations"] || %{})[@current_lang] || %{}
+                    end %>
+                  <.multilang_tabs
+                    multilang_enabled={@multilang_enabled}
+                    language_tabs={@language_tabs}
+                    current_lang={@current_lang}
+                    show_header={false}
+                    show_info={false}
+                    class="mb-2"
+                  />
+                  <p :if={form_texts} id="public-form-texts-hint" class="text-xs text-base-content/60">
+                    {gettext(
+                      "These texts are for the selected language. Leave one empty to use the primary language's text."
+                    )}
+                  </p>
+
                   <%!-- Form Title --%>
                   <div>
                     <.label>{gettext("Form Title")}</.label>
-                    <input
-                      type="text"
-                      name="public_form_title"
-                      value={get_in(@entity.settings, ["public_form_title"]) || @entity.display_name}
-                      placeholder={@entity.display_name}
-                      class="input w-full"
-                      phx-blur="update_public_form_setting"
-                      phx-debounce="500"
-                      disabled={@readonly?}
-                    />
+                    <%= if form_texts do %>
+                      <input
+                        type="text"
+                        id={"public-form-title-#{@current_lang}"}
+                        name={"entities[translations][#{@current_lang}][public_form_title]"}
+                        value={form_texts["public_form_title"]}
+                        placeholder={
+                          get_in(@entity.settings, ["public_form_title"]) || @entity.display_name
+                        }
+                        class="input w-full"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      />
+                    <% else %>
+                      <input
+                        type="text"
+                        id={"public-form-title-#{@current_lang}"}
+                        name="public_form_title"
+                        phx-value-setting="public_form_title"
+                        value={get_in(@entity.settings, ["public_form_title"])}
+                        placeholder={@entity.display_name}
+                        class="input w-full"
+                        phx-blur="update_public_form_setting"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      />
+                    <% end %>
                   </div>
 
                   <%!-- Form Description --%>
                   <div>
                     <.label>{gettext("Form Description (Optional)")}</.label>
-                    <textarea
-                      name="public_form_description"
-                      placeholder={gettext("Describe what this form is for...")}
-                      class="textarea w-full"
-                      rows="2"
-                      phx-blur="update_public_form_setting"
-                      phx-debounce="500"
-                      disabled={@readonly?}
-                    >{get_in(@entity.settings, ["public_form_description"]) || ""}</textarea>
+                    <%= if form_texts do %>
+                      <textarea
+                        id={"public-form-description-#{@current_lang}"}
+                        name={"entities[translations][#{@current_lang}][public_form_description]"}
+                        placeholder={get_in(@entity.settings, ["public_form_description"]) || ""}
+                        class="textarea w-full"
+                        rows="2"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      >{form_texts["public_form_description"] || ""}</textarea>
+                    <% else %>
+                      <textarea
+                        id={"public-form-description-#{@current_lang}"}
+                        name="public_form_description"
+                        phx-value-setting="public_form_description"
+                        placeholder={gettext("Describe what this form is for...")}
+                        class="textarea w-full"
+                        rows="2"
+                        phx-blur="update_public_form_setting"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      >{get_in(@entity.settings, ["public_form_description"]) || ""}</textarea>
+                    <% end %>
                   </div>
 
                   <%!-- Submit Button Text --%>
                   <div>
                     <.label>{gettext("Submit Button Text")}</.label>
-                    <input
-                      type="text"
-                      name="public_form_submit_text"
-                      value={
-                        get_in(@entity.settings, ["public_form_submit_text"]) || gettext("Submit")
-                      }
-                      placeholder={gettext("Submit")}
-                      class="input w-full"
-                      phx-blur="update_public_form_setting"
-                      phx-debounce="500"
-                      disabled={@readonly?}
-                    />
+                    <%= if form_texts do %>
+                      <input
+                        type="text"
+                        id={"public-form-submit-text-#{@current_lang}"}
+                        name={"entities[translations][#{@current_lang}][public_form_submit_text]"}
+                        value={form_texts["public_form_submit_text"]}
+                        placeholder={
+                          get_in(@entity.settings, ["public_form_submit_text"]) || gettext("Submit")
+                        }
+                        class="input w-full"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      />
+                    <% else %>
+                      <input
+                        type="text"
+                        id={"public-form-submit-text-#{@current_lang}"}
+                        name="public_form_submit_text"
+                        phx-value-setting="public_form_submit_text"
+                        value={get_in(@entity.settings, ["public_form_submit_text"])}
+                        placeholder={gettext("Submit")}
+                        class="input w-full"
+                        phx-blur="update_public_form_setting"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      />
+                    <% end %>
                   </div>
 
                   <%!-- Success Message --%>
                   <div>
                     <.label>{gettext("Success Message")}</.label>
-                    <textarea
-                      name="public_form_success_message"
-                      placeholder={gettext("Thank you for your submission!")}
-                      class="textarea w-full"
-                      rows="2"
-                      phx-blur="update_public_form_setting"
-                      phx-debounce="500"
-                      disabled={@readonly?}
-                    >{get_in(@entity.settings, ["public_form_success_message"]) || gettext("Thank you for your submission!")}</textarea>
+                    <%= if form_texts do %>
+                      <textarea
+                        id={"public-form-success-message-#{@current_lang}"}
+                        name={"entities[translations][#{@current_lang}][public_form_success_message]"}
+                        placeholder={
+                          get_in(@entity.settings, ["public_form_success_message"]) ||
+                            gettext("Form submitted successfully!")
+                        }
+                        class="textarea w-full"
+                        rows="2"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      >{form_texts["public_form_success_message"] || ""}</textarea>
+                    <% else %>
+                      <textarea
+                        id={"public-form-success-message-#{@current_lang}"}
+                        name="public_form_success_message"
+                        phx-value-setting="public_form_success_message"
+                        placeholder={gettext("Form submitted successfully!")}
+                        class="textarea w-full"
+                        rows="2"
+                        phx-blur="update_public_form_setting"
+                        phx-debounce="500"
+                        disabled={@readonly?}
+                      >{get_in(@entity.settings, ["public_form_success_message"])}</textarea>
+                    <% end %>
                   </div>
 
                   <%!-- Field Selection --%>
@@ -2665,7 +2839,6 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                             <select
                               name="public_form_honeypot_action"
                               phx-change="update_security_action"
-                              phx-value-setting="public_form_honeypot_action"
                               disabled={@readonly?}
                             >
                               <option
@@ -2744,7 +2917,6 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                             <select
                               name="public_form_time_check_action"
                               phx-change="update_security_action"
-                              phx-value-setting="public_form_time_check_action"
                               disabled={@readonly?}
                             >
                               <option
@@ -2823,7 +2995,6 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                             <select
                               name="public_form_rate_limit_action"
                               phx-change="update_security_action"
-                              phx-value-setting="public_form_rate_limit_action"
                               disabled={@readonly?}
                             >
                               <option
@@ -2867,6 +3038,104 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                               </option>
                             </select>
                             </label>
+                          </div>
+                        <% end %>
+                      </div>
+
+                      <%!-- Cloudflare Turnstile --%>
+                      <% turnstile_status =
+                        PublicFormTurnstile.status(@entity.settings, @turnstile_choices) %>
+                      <div
+                        id="public-form-turnstile"
+                        class="border border-base-300 rounded-lg p-4"
+                      >
+                        <div class="fieldset">
+                          <label class="label cursor-pointer justify-start gap-4">
+                            <input
+                              type="checkbox"
+                              name="public_form_turnstile"
+                              class="toggle toggle-primary"
+                              checked={PublicFormTurnstile.enabled?(@entity.settings)}
+                              phx-click="toggle_security_setting"
+                              phx-value-setting="public_form_turnstile"
+                              disabled={@readonly?}
+                            />
+                            <div>
+                              <span class="fieldset-legend font-medium">
+                                {gettext("Cloudflare Turnstile")}
+                              </span>
+                              <p class="text-xs text-base-content/60 mt-1">
+                                {gettext(
+                                  "Ask visitors to pass a Cloudflare Turnstile check. Needs a Turnstile connection configured in the core Integrations settings, and the site's JavaScript bundle on the page that shows the form."
+                                )}
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+
+                        <%= if turnstile_status != :off do %>
+                          <div class="mt-3 pl-14 space-y-3">
+                            <div :if={turnstile_status != :ready} id="turnstile-not-ready" class="alert alert-warning">
+                              <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                              <span class="text-sm">
+                                {turnstile_notice(turnstile_status)}
+                                <.pk_link
+                                  href="/admin/settings/integrations"
+                                  target="_blank"
+                                  rel="noopener"
+                                  class="link link-primary"
+                                >
+                                  {gettext("Open integrations")}
+                                </.pk_link>
+                              </span>
+                            </div>
+
+                            <div>
+                              <.label class="text-sm">{gettext("Turnstile connection:")}</.label>
+                              <label class="select select-sm w-full max-w-xs mt-1">
+                                <select
+                                  name="public_form_turnstile_connection"
+                                  phx-change="update_security_action"
+                                  disabled={@readonly?}
+                                >
+                                  <option
+                                    value=""
+                                    selected={is_nil(PublicFormTurnstile.connection(@entity.settings))}
+                                  >
+                                    {gettext("Select a connection")}
+                                  </option>
+                                  <option
+                                    :for={{uuid, name} <- @turnstile_choices}
+                                    value={uuid}
+                                    selected={PublicFormTurnstile.connection(@entity.settings) == uuid}
+                                  >
+                                    {name}
+                                  </option>
+                                </select>
+                              </label>
+                            </div>
+
+                            <div>
+                              <.label class="text-sm">{gettext("When triggered:")}</.label>
+                              <label class="select select-sm w-full max-w-xs mt-1">
+                                <select
+                                  name="public_form_turnstile_action"
+                                  phx-change="update_security_action"
+                                  disabled={@readonly?}
+                                >
+                                  <option
+                                    :for={{value, label} <- security_action_options()}
+                                    value={value}
+                                    selected={
+                                      (get_in(@entity.settings, ["public_form_turnstile_action"]) ||
+                                         "reject_error") == value
+                                    }
+                                  >
+                                    {label}
+                                  </option>
+                                </select>
+                              </label>
+                            </div>
                           </div>
                         <% end %>
                       </div>
@@ -2916,7 +3185,7 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                     </div>
 
                     <%!-- Security trigger breakdown --%>
-                    <%= if stats["honeypot_triggers"] || stats["too_fast_triggers"] || stats["rate_limited_triggers"] do %>
+                    <%= if Enum.any?(~w(honeypot_triggers too_fast_triggers rate_limited_triggers turnstile_triggers turnstile_missing_triggers turnstile_unavailable_triggers turnstile_unchecked_triggers), &stats[&1]) do %>
                       <div class="mt-4">
                         <h4 class="text-sm font-medium text-base-content/70 mb-2">
                           {gettext("Security Triggers")}
@@ -2939,6 +3208,36 @@ defmodule PhoenixKitEntities.Web.EntityForm do
                               <.icon name="hero-clock" class="w-3 h-3" />
                               {gettext("Rate Limited: %{count}",
                                 count: stats["rate_limited_triggers"]
+                              )}
+                            </div>
+                          <% end %>
+                          <%= if stats["turnstile_triggers"] do %>
+                            <div class="badge badge-warning gap-1">
+                              <.icon name="hero-shield-exclamation" class="w-3 h-3" />
+                              {gettext("Turnstile: %{count}", count: stats["turnstile_triggers"])}
+                            </div>
+                          <% end %>
+                          <%= if stats["turnstile_missing_triggers"] do %>
+                            <div id="turnstile-missing-count" class="badge badge-warning gap-1">
+                              <.icon name="hero-question-mark-circle" class="w-3 h-3" />
+                              {gettext("Turnstile (no token): %{count}",
+                                count: stats["turnstile_missing_triggers"]
+                              )}
+                            </div>
+                          <% end %>
+                          <%= if stats["turnstile_unchecked_triggers"] do %>
+                            <div id="turnstile-unchecked-count" class="badge badge-error gap-1">
+                              <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                              {gettext("Turnstile not checked: %{count}",
+                                count: stats["turnstile_unchecked_triggers"]
+                              )}
+                            </div>
+                          <% end %>
+                          <%= if stats["turnstile_unavailable_triggers"] do %>
+                            <div class="badge badge-warning gap-1">
+                              <.icon name="hero-cloud" class="w-3 h-3" />
+                              {gettext("Turnstile unavailable: %{count}",
+                                count: stats["turnstile_unavailable_triggers"]
                               )}
                             </div>
                           <% end %>

@@ -158,4 +158,14 @@ defmodule PhoenixKitEntities.EntityDataDeferNotifyTest do
     assert :ok = EntityData.notify_committed(nil, :created)
     refute_received {:data_created, _, _}
   end
+
+  test "any other event raises ArgumentError instead of a FunctionClauseError", ctx do
+    {:ok, record} = EntityData.create(attrs(ctx, 1), defer_notify: true)
+
+    assert_raise ArgumentError, ~r/accepts only :created or :updated/, fn ->
+      EntityData.notify_committed(record, :deleted)
+    end
+
+    refute_received {:data_created, _, _}
+  end
 end
